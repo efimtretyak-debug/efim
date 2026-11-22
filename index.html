@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EFIM Farm Technologies — оборудование для животноводства</title>
+<meta name="description" content="Производство и продажа оборудования для животноводства в Казахстане: стойловое оборудование, скреперы, хэдлоки, поилки. Официальные дилеры Faresin, Dairymaster, Kraiburg, Eisele, Urban.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--zinc:#E7EBEC;--paper:#F5F7F7;--slate:#1E2B33;--steel:#556873;--line:#C9D2D6;--amber:#F2A900;--amber-d:#9A6900;--r:3px}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font:400 17px/1.6 Onest,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--slate);background:var(--paper)}
+a{color:inherit}
+h1,h2,h3{font-family:Unbounded,"Arial Black",sans-serif;line-height:1.14;margin:0 0 .55em;font-weight:700;letter-spacing:-.01em}
+h3{font-weight:500}
+:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+.wrap{width:min(1180px,100% - 40px);margin-inline:auto}
+header{position:sticky;top:0;z-index:50;background:var(--slate);color:#fff}
+.bar{display:flex;align-items:center;gap:28px;min-height:72px}
+.logo{text-decoration:none;display:flex;flex-direction:column;line-height:1.1}
+.logo strong{font:700 1.05rem Unbounded,sans-serif;letter-spacing:.02em}
+.logo span{font-size:.72rem;color:#AEBBC2;letter-spacing:.12em}
+nav{margin-left:auto}
+nav ul{list-style:none;margin:0;padding:0;display:flex;gap:24px}
+nav a{text-decoration:none;color:#D5DDE1;font-weight:500;padding:6px 0;border-bottom:2px solid transparent}
+nav a:hover{color:#fff;border-bottom-color:var(--amber)}
+.tog{display:none;margin-left:auto;background:none;border:1px solid #5B6E79;color:#fff;padding:9px 14px;border-radius:var(--r);font:inherit;cursor:pointer}
+.btn{display:inline-block;background:var(--amber);color:var(--slate);font-weight:700;text-decoration:none;padding:13px 24px;border:2px solid var(--amber);border-radius:var(--r);cursor:pointer;font:700 1rem Onest,sans-serif}
+.btn:hover{background:#FFC21F;border-color:#FFC21F}
+.btn.ghost{background:transparent;color:inherit;border-color:currentColor}
+.btn.sm{padding:9px 16px;font-size:.92rem}
+.hero{background:var(--slate);color:#fff;padding:72px 0 80px}
+.hg{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(2rem,4.6vw,3.7rem);line-height:1.06}
+.hero p{color:#C3CED4;max-width:34em;font-size:1.1rem;margin:0 0 30px}
+.acts{display:flex;flex-wrap:wrap;gap:14px}
+.art svg{width:100%;max-width:540px;display:block;margin-inline:auto}
+.d{fill:none;stroke:#DDE4E7;stroke-width:9;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1.3s cubic-bezier(.6,0,.2,1) forwards}
+.d.t{stroke-width:4;stroke:#5B6E79}.d.h{stroke:var(--amber);animation-delay:.9s}.a{animation-delay:.1s}.b{animation-delay:.4s}.c{animation-delay:.65s}
+@keyframes dr{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){.d{animation:none;stroke-dashoffset:0}html{scroll-behavior:auto}}
+.sec{padding:80px 0}.zn{background:var(--zinc)}
+.sec h2{font-size:clamp(1.5rem,2.8vw,2.2rem)}
+.head{max-width:46em;margin-bottom:34px}.head p{color:var(--steel);margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.ph{aspect-ratio:16/9;background:repeating-linear-gradient(90deg,transparent 0 30px,#CBD4D8 30px 36px),var(--zinc);position:relative}
+.ph::after{content:"";position:absolute;left:0;right:0;top:36%;height:6px;background:#CBD4D8}
+.tb{padding:18px 20px 22px}.tile h3{font-size:1rem;margin-bottom:.4em}.tile p{margin:0;color:var(--steel);font-size:.95rem}
+.brands{border-top:2px solid var(--slate)}
+.row{display:grid;grid-template-columns:240px 1fr;gap:24px;align-items:baseline;padding:22px 0;border-bottom:1px solid var(--line)}
+.row h3{margin:0;font-size:1.15rem}.row p{margin:0;color:var(--steel)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid var(--slate)}
+.step{padding:26px 28px 6px 0}.step+.step{padding-left:28px;border-left:1px solid var(--line)}
+.step b{display:block;font:700 1.7rem Unbounded,sans-serif;color:var(--amber-d);margin-bottom:10px}
+.step h3{font-size:1.05rem}.step p{margin:0;color:var(--steel)}
+.ct{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.ct dl{margin:22px 0 0}.ct dt{font-weight:600;margin-top:14px}.ct dd{margin:2px 0 0;color:var(--steel)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:28px}
+.panel h3{font-size:1.15rem}
+.f{margin-bottom:16px}.f label{display:block;font-weight:600;margin-bottom:6px;font-size:.95rem}
+.f input,.f textarea{width:100%;padding:12px 14px;border:1px solid var(--steel);border-radius:var(--r);font:inherit;background:#fff;color:var(--slate)}
+.f textarea{min-height:100px;resize:vertical}
+.note{font-size:.88rem;color:var(--steel);margin:14px 0 0}
+footer{background:var(--slate);color:#C3CED4;padding:40px 0 24px}
+.fg{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+footer a{text-decoration:none}footer a:hover{color:#fff;text-decoration:underline;text-decoration-color:var(--amber);text-underline-offset:4px}
+footer ul{list-style:none;margin:0;padding:0;display:flex;gap:20px;flex-wrap:wrap}
+.cp{border-top:1px solid #34464F;margin-top:24px;padding-top:18px;font-size:.9rem}
+@media (max-width:900px){
+.tog{display:block}.hdc{display:none}
+nav{display:none;position:absolute;left:0;right:0;top:72px;background:var(--slate);padding:8px 20px 20px;margin:0;border-top:1px solid #34464F}
+nav.open{display:block}nav ul{flex-direction:column;gap:4px}nav a{display:block;padding:12px 0}
+.hero{padding:48px 0 56px}.hg,.ct{grid-template-columns:1fr;gap:32px}.art{order:-1}.art svg{max-width:340px}
+.sec{padding:56px 0}.row{grid-template-columns:1fr;gap:6px}
+.steps{grid-template-columns:1fr}.step,.step+.step{padding:22px 0 8px;border-left:0;border-top:1px solid var(--line)}.step:first-child{border-top:0}}
+</style>
+</head>
+<body>
+<header>
+<div class="wrap bar">
+<a class="logo" href="#top"><strong>EFIM</strong><span>FARM TECHNOLOGIES</span></a>
+<button class="tog" aria-expanded="false" aria-controls="nav">Меню</button>
+<nav id="nav" aria-label="Главное меню"><ul>
+<li><a href="#production">Производство</a></li><li><a href="#brands">Бренды</a></li><li><a href="#process">Как работаем</a></li><li><a href="#contact">Контакты</a></li>
+</ul></nav>
+<div class="hdc"><a class="btn sm" href="https://wa.me/77775440651">WhatsApp</a></div>
+</div>
+</header>
+<main id="top">
+<section class="hero"><div class="wrap hg">
+<div>
+<h1>Мы реально производим оборудование для ферм</h1>
+<p>Производство и продажа оборудования для животноводства. Подбираем, поставляем, монтируем и обслуживаем.</p>
+<div class="acts"><a class="btn" href="#contact">Запросить КП</a><a class="btn ghost" href="#production">Смотреть оборудование</a></div>
+</div>
+<div class="art"><svg viewBox="0 0 520 420" role="img" aria-label="Стойловое оборудование">
+<path class="d t a" pathLength="1" d="M20 384H500"/><path class="d a" pathLength="1" d="M90 384V140"/><path class="d a" pathLength="1" d="M200 384V140"/>
+<path class="d b" pathLength="1" d="M310 384V140"/><path class="d b" pathLength="1" d="M420 384V140"/>
+<path class="d c" pathLength="1" d="M60 140H450"/><path class="d c" pathLength="1" d="M60 250H450"/><path class="d h" pathLength="1" d="M200 140Q255 30 310 140"/>
+</svg></div>
+</div></section>
+
+<section class="sec" id="production"><div class="wrap">
+<div class="head"><h2>Производим сами</h2><p>Оборудование собственного производства для ферм и комплексов.</p></div>
+<div class="grid">
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Стойловое оборудование</h3><p>Комфортные ограждения, перегородки, калитки и другое стойловое оборудование.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Индивидуальные клетки для телят</h3><p>Клетки для содержания телят.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Скреперные системы</h3><p>Скреперные системы для навозоудаления.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Групповые боксы</h3><p>Для молодняка и родильного отделения.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Ветеринарные станки</h3><p>Станки разных модификаций.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Световентиляционный конёк</h3><p>Изготавливаем индивидуально под каждое здание.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Хэдлоки</h3><p>Самофиксирующая кормовая решётка для КРС.</p></div></article>
+<article class="tile"><div class="ph"></div><div class="tb"><h3>Групповые поилки</h3><p>Групповые поилки с подогревом.</p></div></article>
+</div></div></section>
+
+<section class="sec zn" id="brands"><div class="wrap">
+<div class="head"><h2>Официальные дилеры мировых производителей</h2><p>Поставляем оборудование проверенных брендов и обеспечиваем сервис.</p></div>
+<div class="brands">
+<div class="row"><h3>Faresin</h3><p>Самоходные и прицепные смесители-кормораздатчики для животноводческих ферм.</p></div>
+<div class="row"><h3>Dairymaster</h3><p>Доильные залы и оборудование для молочных ферм: доение, кормление, скреперы, охлаждение молока, мониторинг здоровья и фертильности.</p></div>
+<div class="row"><h3>Kraiburg</h3><p>Резиновые маты для комфорта и благополучия животных.</p></div>
+<div class="row"><h3>Eisele</h3><p>Насосы и оборудование для удаления и сепарации навоза, в том числе для биогазовых установок.</p></div>
+<div class="row"><h3>Dinamica Generale</h3><p>Контроль и анализ кормов: датчики взвешивания, NIR-анализаторы, трекеры данных и программное обеспечение.</p></div>
+<div class="row"><h3>Urban</h3><p>Мобильное и автоматизированное кормление телят и ягнят, поилка Alma Pro.</p></div>
+<div class="row"><h3>MWS</h3><p>Режущие ножи для смесителей Siloking, Kuhn, BVL, Faresin, Triolet, АКМ, КИС и других. Всегда в наличии.</p></div>
+</div></div></section>
+
+<section class="sec" id="process"><div class="wrap">
+<div class="head"><h2>Как мы работаем</h2></div>
+<div class="steps">
+<div class="step"><b>1</b><h3>Подбор</h3><p>Отдел продаж помогает подобрать оборудование под вашу ферму и задачи.</p></div>
+<div class="step"><b>2</b><h3>Поставка</h3><p>Снабжение и логистика отвечают за сроки, маршруты и комплектующие.</p></div>
+<div class="step"><b>3</b><h3>Монтаж и сервис</h3><p>Сервисный отдел монтирует, обслуживает и поддерживает оборудование.</p></div>
+</div></div></section>
+
+<section class="sec zn" id="contact"><div class="wrap ct">
+<div>
+<h2>Запросить коммерческое предложение</h2>
+<p>Расскажите, что нужно для фермы, и мы подберём оборудование и пришлём предложение.</p>
+<dl>
+<dt>Телефон и WhatsApp</dt><dd><a href="tel:+77775440651">+7 777 544 06 51</a></dd>
+<dt>Эл. почта</dt><dd><a href="mailto:efim@efimfarmtechnologies.kz">efim@efimfarmtechnologies.kz</a></dd>
+<dt>Адрес</dt><dd><a href="https://maps.google.com/maps?q=%D1%82%D0%BE%D0%B1%D1%8B%D0%BB%20%D1%82%D0%B0%D1%83%D0%B5%D0%BB%D1%81%D1%8B%D0%B7%D0%B4%D1%8B%D0%BA%2069%2F1">Тобыл, Тәуелсіздік 69/1</a></dd>
+</dl>
+</div>
+<div class="panel">
+<h3>Заявка</h3>
+<form id="lead">
+<div class="f"><label for="n">Имя</label><input id="n" required autocomplete="name"></div>
+<div class="f"><label for="p">Телефон</label><input id="p" type="tel" required autocomplete="tel" placeholder="+7"></div>
+<div class="f"><label for="q">Что нужно</label><input id="q" placeholder="Например: хэдлоки на 200 голов"></div>
+<div class="f"><label for="m">Комментарий</label><textarea id="m"></textarea></div>
+<button class="btn" type="submit">Отправить в WhatsApp</button>
+<p class="note">Откроется WhatsApp с готовым сообщением. Отправляя заявку, вы соглашаетесь на обработку персональных данных.</p>
+</form>
+</div>
+</div></section>
+</main>
+<footer><div class="wrap">
+<div class="fg"><strong>Efim Farm Technologies</strong>
+<ul>
+<li><a href="https://www.facebook.com/share/1Csv8hzAcr/">Facebook</a></li><li><a href="https://youtube.com/@agralfarm4406">YouTube</a></li>
+<li><a href="https://www.instagram.com/agral_farm">Instagram</a></li><li><a href="https://www.tiktok.com/@timka2406">TikTok</a></li><li><a href="https://wa.me/77775440651">WhatsApp</a></li>
+</ul></div>
+<div class="cp">© 2026 Efim Farm Technologies</div>
+</div></footer>
+<script>
+(function(){
+var t=document.querySelector('.tog'),n=document.getElementById('nav');
+function s(o){n.classList.toggle('open',o);t.setAttribute('aria-expanded',o?'true':'false')}
+t.addEventListener('click',function(){s(!n.classList.contains('open'))});
+n.addEventListener('click',function(e){if(e.target.closest('a'))s(false)});
+document.getElementById('lead').addEventListener('submit',function(e){
+e.preventDefault();
+var v=function(i){return document.getElementById(i).value.trim()};
+var txt='Здравствуйте! Меня зовут '+v('n')+', телефон '+v('p')+'.'+(v('q')?' Интересует: '+v('q')+'.':'')+(v('m')?' '+v('m'):'');
+window.open('https://wa.me/77775440651?text='+encodeURIComponent(txt),'_blank','noopener');
+});
+})();
+</script>
+</body>
+</html>
