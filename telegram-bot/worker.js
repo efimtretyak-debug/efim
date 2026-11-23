@@ -23,7 +23,34 @@ const ALLOWED_ORIGINS = [
   'https://efimfarmtechnologies.kz',
   'https://www.efimfarmtechnologies.kz',
 ];
-const STATUS = { new: '🆕 Новая', taken: '🛠 В работе', closed: '✅ Закрыта' };
+const STATUS = { new: '🆕 Новая', taken: '🛠 В работе', kp: '📄 КП отправлено', won: '✅ Сделка', lost: '❌ Отказ', closed: '✅ Закрыта' };
+const PLAIN = { new: 'Новая', taken: 'В работе', kp: 'КП отправлено', won: 'Сделка', lost: 'Отказ', closed: 'Закрыта' };
+const CLOSED = new Set(['won', 'lost', 'closed']);
+// Сообщения клиенту (на его языке)
+const KP_HEAD = {
+  ru: (id) => `📄 <b>Коммерческое предложение</b> по вашей заявке #${id} от EFIM FARM TECHNOLOGIES.\n\nЕсли есть вопросы — напишите их прямо здесь, менеджер ответит.`,
+  kk: (id) => `📄 #${id} өтініміңіз бойынша EFIM FARM TECHNOLOGIES компаниясының <b>коммерциялық ұсынысы</b>.\n\nСұрақтарыңыз болса — осында жазыңыз, менеджер жауап береді.`,
+  de: (id) => `📄 <b>Angebot</b> von EFIM FARM TECHNOLOGIES zu Ihrer Anfrage #${id}.\n\nBei Fragen schreiben Sie einfach hier — ein Manager antwortet.`,
+};
+const CLIENT_FWD = {
+  ru: '✅ Передали ваше сообщение менеджеру, ответ придёт сюда.',
+  kk: '✅ Хабарламаңызды менеджерге жібердік, жауап осында келеді.',
+  de: '✅ Ihre Nachricht ist beim Manager, die Antwort kommt hier.',
+};
+const MGR_PREFIX = { ru: '💬 Менеджер EFIM:', kk: '💬 EFIM менеджері:', de: '💬 EFIM-Manager:' };
+// Время Казахстана (UTC+5): «23.11.2026 17:05»
+const kzTime = (sec) => {
+  if (!sec) return '';
+  const d = new Date((sec + 5 * 3600) * 1000).toISOString();
+  return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)} ${d.slice(11, 16)}`;
+};
+// Ссылка WhatsApp по номеру клиента (8 777… → 7777…)
+const waLink = (phone) => {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
+  if (d.length === 10 && d[0] === '7') d = '7' + d;
+  return d.length >= 10 && d.length <= 15 ? `https://wa.me/${d}` : null;
+};
 const MAX_REMINDS = 3;
 const BROADCAST_BATCH = 40;          // сообщений за один запуск расписания (лимит Cloudflare — 50 запросов)
 const LANG_NAMES = { ru: 'русский', kk: 'қазақша', de: 'Deutsch' };
@@ -181,15 +208,27 @@ export class BotState {
     if (cmd === 'leads') { if (await this.isStaff(uid)) return this.send(uid, await this.leadsText()); return; }
     if (cmd === 'stats') { if (await this.isStaff(uid)) return this.send(uid, await this.statsText()); return; }
     if (cmd === 'broadcast') return this.cmdBroadcast(m, args);
+    if (cmd === 'cancel') { await this.setState(uid, null); return this.send(uid, 'Отменено.'); }
     if (cmd === 'excel') { if (await this.isAdmin(uid)) return this.sendExcel(uid); return; }
     if (cmd === 'invite') { if (await this.isAdmin(uid)) return this.send(uid, `Перешли эту ссылку сотруднику. Она одноразовая: он нажимает, жмёт «Запустить», и он в команде.\n\n${await this.newInvite()}`); return; }
     if (cmd === 'staff') { if (await this.isAdmin(uid)) return this.send(uid, await this.teamText()); return; }
     if (cmd === 'addstaff') return this.cmdAddStaff(m, args);
     if (cmd === 'removestaff') return this.cmdRemoveStaff(m, args);
 
-    // Шаги заявки на КП
     const st = await this.getState(uid);
-    if (!st) return;
+    // Сотрудник отправляет КП клиенту
+    if (st && st.step === 'kp') return this.staffSendKp(m, st);
+    // Сотрудник ответил (reply) на сообщение клиента — пересылаем клиенту
+    if (m.reply_to_message && await this.isStaff(uid)) {
+      const client = await this.get(`fw:${uid}:${m.reply_to_message.message_id}`, null);
+      if (client) return this.replyToClient(m, client);
+    }
+    // Свободное сообщение клиента — менеджеру по его заявке
+    if (!st) {
+      if (!cmd && !(await this.isStaff(uid))) return this.clientMessage(m);
+      return;
+    }
+    // Шаги заявки на КП
     const l = await this.getLang(uid);
     const t = T[l];
     if (st.step === 'name' && m.text) {
@@ -358,17 +397,33 @@ export class BotState {
   // Заявки
   // =====================================================================
   leadText(x) {
-    const status = STATUS[x.status] + (x.by ? ` (${esc(x.by)})` : '');
+    const status = (STATUS[x.status] || x.status) + (x.by ? ` (${esc(x.by)})` : '');
     const src = x.source === 'site'
       ? `🌐 С сайта, язык: ${x.lang}`
       : `Telegram: ${x.tg} (id ${x.uid}), язык: ${x.lang}`;
+    const kp = x.kp_at ? `\n📄 КП отправлено: ${kzTime(x.kp_at)}, ${esc(x.kp_by)}${x.kp_count > 1 ? ` (всего ${x.kp_count})` : ''}` : '';
     return `📝 <b>Заявка #${x.id}</b> — ${status}\n\n` +
-      `👤 Имя: ${esc(x.name)}\n📞 Телефон: ${esc(x.phone)}\n🔧 Запрос: ${esc(x.need)}\n\n${src}`;
+      `👤 Имя: ${esc(x.name)}\n📞 Телефон: ${esc(x.phone)}\n🔧 Запрос: ${esc(x.need)}${kp}\n\n${src}`;
   }
   leadKb(x) {
-    if (x.status === 'new') return new KB().button('✅ Беру в работу', `lead:take:${x.id}`).adjust(1);
-    if (x.status === 'taken') return new KB().button('🔒 Закрыть', `lead:close:${x.id}`).adjust(1);
-    return undefined;
+    if (CLOSED.has(x.status)) return undefined;
+    const b = new KB();
+    const site = !x.uid;   // у заявки с сайта нет Telegram клиента
+    if (x.status === 'new') b.button('✅ Беру в работу', `lead:take:${x.id}`);
+    if (x.status === 'taken') b.button(site ? '📄 КП отправлено (вручную)' : '📄 Отправить КП', `lead:${site ? 'kpdone' : 'kp'}:${x.id}`);
+    if (x.status === 'kp') {
+      if (!site) b.button('📄 Отправить ещё КП', `lead:kp:${x.id}`);
+      b.button('✅ Сделка', `lead:won:${x.id}`);
+    }
+    if (x.status === 'taken' || x.status === 'kp') b.button('❌ Отказ', `lead:lost:${x.id}`);
+    const wa = waLink(x.phone);
+    if (wa) b.url('💬 WhatsApp клиенту', wa);
+    return b.adjust(1);
+  }
+  async refreshLead(x) {
+    for (const [sid, mid] of Object.entries(x.msgs || {})) {
+      await this.tg('editMessageText', { chat_id: Number(sid), message_id: mid, text: this.leadText(x), parse_mode: 'HTML', reply_markup: this.leadKb(x) });
+    }
   }
 
   async createLead(fields) {
@@ -418,27 +473,89 @@ export class BotState {
     if (!(await this.isStaff(cb.from.id))) return this.answer(cb, 'Нет доступа', true);
     const [, action, lid] = cb.data.split(':');
     const who = [cb.from.first_name, cb.from.last_name].filter(Boolean).join(' ');
+    const work = (st) => st === 'taken' || st === 'kp';
+    if (action === 'kp') {    // дальше сотрудник присылает файл или текст КП
+      const x = (await this.leads())[lid];
+      if (!x) return this.answer(cb, 'Заявка не найдена', true);
+      if (!work(x.status) || !x.uid) return this.answer(cb, 'Уже обработано');
+      await this.setState(cb.from.id, { step: 'kp', lead: lid });
+      await this.send(cb.from.id, `📄 <b>КП для заявки #${x.id}</b> (${esc(x.name)})\n\nПришлите файл (PDF, Excel, Word), фото или текст — бот перешлёт его клиенту от имени компании.\n\nОтмена: /cancel`);
+      return this.answer(cb);
+    }
+    const now = Date.now() / 1000;
     const res = await this.update('leads', {}, (leads) => {
       const x = leads[lid];
       if (!x) return 'missing';
       if (action === 'take' && x.status === 'new') Object.assign(x, { status: 'taken', by: who, by_id: cb.from.id });
+      else if (action === 'kpdone' && work(x.status)) Object.assign(x, { status: 'kp', kp_at: now, kp_by: who, kp_count: (x.kp_count || 0) + 1 });
+      else if (action === 'won' && x.status === 'kp') Object.assign(x, { status: 'won', closed_at: now });
+      else if (action === 'lost' && work(x.status)) Object.assign(x, { status: 'lost', closed_at: now });
       else if (action === 'close' && x.status === 'taken') x.status = 'closed';
       else return 'done';
       return { ...x };
     });
     if (res === 'missing') return this.answer(cb, 'Заявка не найдена', true);
     if (res === 'done') return this.answer(cb, 'Уже обработано');
-    for (const [sid, mid] of Object.entries(res.msgs || {})) {
-      await this.tg('editMessageText', { chat_id: Number(sid), message_id: mid, text: this.leadText(res), parse_mode: 'HTML', reply_markup: this.leadKb(res) });
-    }
+    await this.refreshLead(res);
     return this.answer(cb, 'Готово');
+  }
+
+  // Сотрудник прислал КП (файл / фото / текст) — пересылаем клиенту
+  async staffSendKp(m, st) {
+    const uid = m.from.id;
+    const x = (await this.leads())[st.lead];
+    if (!x || !x.uid || CLOSED.has(x.status)) { await this.setState(uid, null); return this.send(uid, 'Заявка уже закрыта или не найдена.'); }
+    if (!m.document && !m.photo && !m.text) return this.send(uid, 'Пришлите файл, фото или текст КП. Отмена: /cancel');
+    const lang = x.lang in KP_HEAD ? x.lang : 'ru';
+    const head = await this.send(x.uid, KP_HEAD[lang](x.id));
+    if (!head.ok) {
+      await this.setState(uid, null);
+      return this.send(uid, `❗️ Не удалось отправить клиенту: ${esc(head.description || '')}\nВозможно, он заблокировал бота — свяжитесь по телефону или WhatsApp.`);
+    }
+    const copy = await this.tg('copyMessage', { chat_id: x.uid, from_chat_id: m.chat.id, message_id: m.message_id });
+    await this.setState(uid, null);
+    if (!copy.ok) return this.send(uid, `❗️ Клиенту ушло только сообщение-шапка, сам КП не отправился: ${esc(copy.description || '')}`);
+    const who = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ');
+    const res = await this.update('leads', {}, (leads) => {
+      const y = leads[st.lead];
+      Object.assign(y, { status: 'kp', kp_at: Date.now() / 1000, kp_by: who, kp_count: (y.kp_count || 0) + 1 });
+      if (!y.by_id) Object.assign(y, { by: who, by_id: uid });
+      return { ...y };
+    });
+    await this.refreshLead(res);
+    return this.send(uid, `✅ КП отправлено клиенту ${esc(x.name)} (заявка #${x.id}). Если клиент ответит, его сообщение придёт сюда.`);
+  }
+
+  // Клиент написал боту вне заявки — передаём менеджеру его последней открытой заявки
+  async clientMessage(m) {
+    const uid = m.from.id;
+    const l = await this.getLang(uid);
+    const open = Object.values(await this.leads()).filter((x) => x.uid === uid && !CLOSED.has(x.status)).sort((a, b) => b.id - a.id)[0];
+    if (!open) return this.send(uid, T[l].menu, await this.kbMenu(l, uid));
+    const to = open.by_id ? [open.by_id] : [...await this.allStaff()];
+    for (const sid of to) {
+      const h = await this.send(sid, `💬 <b>Клиент ${esc(open.name)}</b> по заявке #${open.id} (${STATUS[open.status]}):\n<i>Ответьте на сообщение (свайп → «Ответить») — бот передаст ответ клиенту.</i>`);
+      if (h.ok) await this.put(`fw:${sid}:${h.result.message_id}`, uid);
+      const c = await this.tg('copyMessage', { chat_id: sid, from_chat_id: uid, message_id: m.message_id });
+      if (c.ok) await this.put(`fw:${sid}:${c.result.message_id}`, uid);
+    }
+    return this.send(uid, CLIENT_FWD[l] || CLIENT_FWD.ru);
+  }
+
+  // Ответ сотрудника клиенту
+  async replyToClient(m, client) {
+    const l = await this.getLang(client);
+    await this.send(client, MGR_PREFIX[l] || MGR_PREFIX.ru);
+    const c = await this.tg('copyMessage', { chat_id: client, from_chat_id: m.chat.id, message_id: m.message_id });
+    await this.tg('setMessageReaction', { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: 'emoji', emoji: c.ok ? '👍' : '👎' }] });
+    if (!c.ok) return this.send(m.chat.id, `❗️ Не доставлено: ${esc(c.description || '')}`);
   }
 
   // =====================================================================
   // Режим сотрудников
   // =====================================================================
   async leadsText() {
-    const open = Object.values(await this.leads()).filter((x) => x.status !== 'closed').sort((a, b) => a.id - b.id).slice(-10);
+    const open = Object.values(await this.leads()).filter((x) => !CLOSED.has(x.status)).sort((a, b) => a.id - b.id).slice(-10);
     if (!open.length) return 'Открытых заявок нет 👍';
     return '<b>Открытые заявки:</b>\n' + open.map((x) => `#${x.id} ${STATUS[x.status]} — ${esc(x.name)}, ${esc(x.phone)}`).join('\n');
   }
@@ -448,8 +565,9 @@ export class BotState {
     const c = (arr, f) => arr.filter(f).length;
     return '<b>Статистика</b>\n' +
       `Пользователей: ${users.length} (🇷🇺 ${c(users, (v) => v === 'ru')}, 🇰🇿 ${c(users, (v) => v === 'kk')}, 🇩🇪 ${c(users, (v) => v === 'de')})\n` +
-      `Заявок: ${leads.length} (новых ${c(leads, (x) => x.status === 'new')}, в работе ${c(leads, (x) => x.status === 'taken')}, ` +
-      `закрыто ${c(leads, (x) => x.status === 'closed')})`;
+      `Заявок: ${leads.length}\n` +
+      `🆕 новых ${c(leads, (x) => x.status === 'new')}, 🛠 в работе ${c(leads, (x) => x.status === 'taken')}, 📄 КП отправлено ${c(leads, (x) => x.status === 'kp')}\n` +
+      `✅ сделок ${c(leads, (x) => x.status === 'won' || x.status === 'closed')}, ❌ отказов ${c(leads, (x) => x.status === 'lost')}`;
   }
   async teamText() {
     const staff = await this.savedStaff();
@@ -462,7 +580,8 @@ export class BotState {
   async staffMenuText() {
     const leads = Object.values(await this.leads());
     return '👷 <b>Меню сотрудника</b>\n\n' +
-      `🆕 Новых заявок: ${leads.filter((x) => x.status === 'new').length}\n🛠 В работе: ${leads.filter((x) => x.status === 'taken').length}`;
+      `🆕 Новых заявок: ${leads.filter((x) => x.status === 'new').length}\n🛠 В работе: ${leads.filter((x) => x.status === 'taken').length}\n` +
+      `📄 Ждут ответа на КП: ${leads.filter((x) => x.status === 'kp').length}`;
   }
   async kbStaffMenu(uid) {
     const b = new KB().button('📋 Открытые заявки', 'staff:leads').button('🛠 Мои заявки', 'staff:mine')
@@ -490,8 +609,8 @@ export class BotState {
     if (action === 'menu') return this.show(cb, await this.staffMenuText(), await this.kbStaffMenu(uid));
     if (action === 'leads') return this.show(cb, await this.leadsText(), this.kbStaffBack());
     if (action === 'mine') {
-      const mine = Object.values(await this.leads()).filter((x) => x.status === 'taken' && x.by_id === uid);
-      const text = mine.length ? '<b>Мои заявки в работе:</b>\n' + mine.map((x) => `#${x.id} — ${esc(x.name)}, ${esc(x.phone)}`).join('\n')
+      const mine = Object.values(await this.leads()).filter((x) => (x.status === 'taken' || x.status === 'kp') && x.by_id === uid);
+      const text = mine.length ? '<b>Мои заявки в работе:</b>\n' + mine.map((x) => `#${x.id} ${STATUS[x.status]} — ${esc(x.name)}, ${esc(x.phone)}`).join('\n')
         : 'У тебя нет заявок в работе.';
       return this.show(cb, text, this.kbStaffBack());
     }
@@ -525,25 +644,21 @@ export class BotState {
   async sendExcel(chat) {
     const leads = Object.values(await this.leads()).sort((a, b) => a.id - b.id);
     if (!leads.length) return this.send(chat, 'Заявок пока нет — выгружать нечего.');
-    const dt = (sec) => {   // время Казахстана, UTC+5
-      if (!sec) return '';
-      const d = new Date((sec + 5 * 3600) * 1000).toISOString();
-      return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)} ${d.slice(11, 16)}`;
-    };
-    const plain = { new: 'Новая', taken: 'В работе', closed: 'Закрыта' };
+    const dt = kzTime;
     const columns = [
       { title: '№', width: 6 }, { title: 'Дата (Алматы)', width: 17 }, { title: 'Статус', width: 11 },
       { title: 'Взял в работу', width: 18 }, { title: 'Имя', width: 20 }, { title: 'Телефон', width: 18 },
       { title: 'Запрос', width: 50 }, { title: 'Источник', width: 10 }, { title: 'Telegram', width: 16 },
-      { title: 'Язык', width: 9 }, { title: 'Вложение', width: 10 }, { title: 'Напоминаний', width: 12 },
+      { title: 'Язык', width: 9 }, { title: 'Вложение', width: 10 }, { title: 'КП отправлено', width: 17 },
+      { title: 'КП отправил', width: 18 }, { title: 'КП, раз', width: 8 }, { title: 'Закрыта', width: 17 }, { title: 'Напоминаний', width: 12 },
     ];
-    const rows = leads.map((x) => [x.id, dt(x.created), plain[x.status] || x.status, x.by || '', x.name, x.phone, x.need,
+    const rows = leads.map((x) => [x.id, dt(x.created), PLAIN[x.status] || x.status, x.by || '', x.name, x.phone, x.need,
       x.source === 'site' ? 'Сайт' : 'Бот', x.tg && x.tg !== '—' ? x.tg : '', LANG_NAMES[x.lang] || x.lang || '',
-      x.file ? (x.file.type === 'photo' ? 'фото' : 'файл') : '', x.reminds || 0]);
+      x.file ? (x.file.type === 'photo' ? 'фото' : 'файл') : '', dt(x.kp_at), x.kp_by || '', x.kp_count || 0, dt(x.closed_at), x.reminds || 0]);
     const bytes = buildXlsx({ sheet: 'Заявки', columns, rows });
     const today = dt(Date.now() / 1000).slice(0, 10).split('.').reverse().join('-');
     const c = (st) => leads.filter((x) => x.status === st).length;
-    const caption = `📥 <b>Заявки EFIM</b> на ${dt(Date.now() / 1000)}\nВсего: ${leads.length} (новых ${c('new')}, в работе ${c('taken')}, закрыто ${c('closed')})`;
+    const caption = `📥 <b>Заявки EFIM</b> на ${dt(Date.now() / 1000)}\nВсего: ${leads.length} (новых ${c('new')}, в работе ${c('taken')}, КП ${c('kp')}, сделок ${c('won') + c('closed')}, отказов ${c('lost')})`;
     const r = await this.tgFile('sendDocument', 'document', chat, bytes, `Заявки_EFIM_${today}.xlsx`, caption);
     if (!r.ok) return this.send(chat, 'Не получилось отправить файл: ' + esc(r.description || ''));
   }
