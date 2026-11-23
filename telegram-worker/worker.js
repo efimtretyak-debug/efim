@@ -2,7 +2,8 @@
 //
 // Секреты (Cloudflare → efim-leads → Settings → Variables and Secrets), в этом файле их нет:
 //   TELEGRAM_BOT_TOKEN — токен бота от @BotFather
-//   TELEGRAM_CHAT_ID   — куда присылать заявки (менеджер или группа)
+//   TELEGRAM_CHAT_ID   — кому присылать заявки: один или несколько chat_id через запятую
+//                        (личные id менеджеров и/или id группы, например 512345678,698765432)
 //   TG_WEBHOOK_SECRET  — секрет, которым Telegram подписывает обновления
 //   SETUP_KEY          — ключ для /setup (регистрация вебхука, команд и описания бота)
 // Хранилище: KV-namespace, привязанное как BOT (язык пользователя, шаг заявки, связь ответов).
@@ -100,6 +101,17 @@ async function tg(env, method, body) {
   return r.json().catch(() => ({ ok: false }));
 }
 
+// Список получателей заявок из TELEGRAM_CHAT_ID («123, 456, -100789»).
+const admins = (env) => String(env.TELEGRAM_CHAT_ID || '').split(/[\s,;]+/).filter(Boolean);
+const isAdmin = (env, chat) => admins(env).includes(String(chat));
+
+// Отправить сообщение всем получателям. Если указан client — запомнить, чтобы ответ ушёл клиенту.
+async function notifyAdmins(env, text, client) {
+  const res = await Promise.all(admins(env).map((id) => tg(env, 'sendMessage', { chat_id: id, text, parse_mode: 'HTML' })
+    .then(async (r) => { if (r.ok && client) await kv.put(env, `fw:${id}:${r.result.message_id}`, client, 30 * DAY); return r; })));
+  return { ok: res.some((r) => r.ok), description: res.filter((r) => !r.ok).map((r) => r.description).join('; ') };
+}
+
 function cors(origin) {
   return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400', 'Vary': 'Origin' };
@@ -130,7 +142,7 @@ async function siteLead(request, env) {
     `<b>Язык сайта:</b> ${LANG_NAMES[data.lang] || '—'}`,
   ].filter(Boolean).join('\n');
 
-  const r = await tg(env, 'sendMessage', { chat_id: env.TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' });
+  const r = await notifyAdmins(env, text);
   if (!r.ok) return new Response('Telegram error: ' + (r.description || ''), { status: 502, headers });
   return new Response('OK', { status: 200, headers });
 }
@@ -199,8 +211,7 @@ async function finishLead(env, msg, st, lang) {
     '',
     '<i>Ответьте на это сообщение — бот перешлёт ответ клиенту.</i>',
   ].filter((x) => x !== null && x !== undefined && x !== false).join('\n');
-  const r = await tg(env, 'sendMessage', { chat_id: env.TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' });
-  if (r.ok) await kv.put(env, `fw:${r.result.message_id}`, msg.chat.id, 30 * DAY);
+  await notifyAdmins(env, text, msg.chat.id);
   await kv.del(env, `st:${msg.chat.id}`);
   await send(env, msg.chat.id, L[lang].done, removeKb);
   return send(env, msg.chat.id, L[lang].hello(''), menu(L[lang], lang));
@@ -210,11 +221,11 @@ async function onMessage(env, msg) {
   const chat = msg.chat.id;
   if (msg.chat.type !== 'private') {
     // Группа менеджеров: ответ на пересланное сообщение уходит клиенту.
-    if (String(chat) === String(env.TELEGRAM_CHAT_ID)) await adminReply(env, msg);
+    if (isAdmin(env, chat)) await adminReply(env, msg);
     return;
   }
   // Личный чат менеджера: ответ (reply) на заявку уходит клиенту.
-  if (String(chat) === String(env.TELEGRAM_CHAT_ID) && msg.reply_to_message && await adminReply(env, msg)) return;
+  if (isAdmin(env, chat) && msg.reply_to_message && await adminReply(env, msg)) return;
 
   const lang = await userLang(env, msg.from);
   const t = L[lang];
@@ -260,12 +271,12 @@ async function onMessage(env, msg) {
   const from = msg.from;
   const who = `${esc([from.first_name, from.last_name].filter(Boolean).join(' '))}${from.username ? ' (@' + esc(from.username) + ')' : ''}`;
   const body = msg.text ? esc(msg.text.slice(0, 3000)) : '<i>(вложение — см. ниже)</i>';
-  const r = await tg(env, 'sendMessage', { chat_id: env.TELEGRAM_CHAT_ID, parse_mode: 'HTML',
-    text: `<b>💬 Сообщение в боте</b>\n<b>От:</b> ${who}, язык: ${LANG_NAMES[lang]}\n\n${body}\n\n<i>Ответьте на это сообщение — бот перешлёт ответ клиенту.</i>` });
-  if (r.ok) await kv.put(env, `fw:${r.result.message_id}`, chat, 30 * DAY);
+  await notifyAdmins(env, `<b>💬 Сообщение в боте</b>\n<b>От:</b> ${who}, язык: ${LANG_NAMES[lang]}\n\n${body}\n\n<i>Ответьте на это сообщение — бот перешлёт ответ клиенту.</i>`, chat);
   if (!msg.text) {
-    const c = await tg(env, 'copyMessage', { chat_id: env.TELEGRAM_CHAT_ID, from_chat_id: chat, message_id: msg.message_id });
-    if (c.ok) await kv.put(env, `fw:${c.result.message_id}`, chat, 30 * DAY);
+    await Promise.all(admins(env).map(async (id) => {
+      const c = await tg(env, 'copyMessage', { chat_id: id, from_chat_id: chat, message_id: msg.message_id });
+      if (c.ok) await kv.put(env, `fw:${id}:${c.result.message_id}`, chat, 30 * DAY);
+    }));
   }
   return send(env, chat, t.forwarded, menu(t, lang));
 }
@@ -273,11 +284,11 @@ async function onMessage(env, msg) {
 async function adminReply(env, msg) {
   const reply = msg.reply_to_message;
   if (!reply) return false;
-  const client = await kv.get(env, `fw:${reply.message_id}`);
+  const client = await kv.get(env, `fw:${msg.chat.id}:${reply.message_id}`);
   if (!client) return false;
   const r = await tg(env, 'copyMessage', { chat_id: client, from_chat_id: msg.chat.id, message_id: msg.message_id });
   await tg(env, 'setMessageReaction', { chat_id: msg.chat.id, message_id: msg.message_id, reaction: [{ type: 'emoji', emoji: r.ok ? '👍' : '👎' }] });
-  if (r.ok) await kv.put(env, `fw:${msg.message_id}`, client, 30 * DAY);
+  if (r.ok) await kv.put(env, `fw:${msg.chat.id}:${msg.message_id}`, client, 30 * DAY);
   return true;
 }
 

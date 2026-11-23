@@ -17,7 +17,8 @@
 3. **Edit code** → удалите всё, вставьте содержимое `worker.js` → **Deploy**.
 4. **Settings → Variables and Secrets → Add**, тип **Secret**:
    - `TELEGRAM_BOT_TOKEN` — токен от @BotFather
-   - `TELEGRAM_CHAT_ID` — число из шага 1
+   - `TELEGRAM_CHAT_ID` — число из шага 1. Несколько получателей — через запятую: `512345678,698765432`.
+     Каждый получатель должен нажать «Start» у бота.
 5. Скопируйте адрес воркера, вида `https://efim-leads.<ваше-имя>.workers.dev`.
 
 ## 3. Подключить к сайту
