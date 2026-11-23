@@ -15,6 +15,7 @@
 // Все данные (пользователи, сотрудники, заявки) хранятся в Durable Object «BotState».
 
 import { buildXlsx } from './xlsx.js';
+import { askAssistant, AI_HISTORY, AI_DAILY_LIMIT } from './ai.js';
 import { LANGS, MAP_QUERY, OWN, PAGES, PARTNERS, PHOTOS, PICK, PICK_LANG, REC, SOCIALS, T, WHATSAPP } from './texts.js';
 
 const BOT_VERSION = '5.0-cloudflare';
@@ -50,6 +51,11 @@ const MY = {
   de: { btn: '📋 Meine Anfragen', title: '📋 <b>Ihre Anfragen</b>', none: 'Sie haben noch keine Anfragen. Senden Sie eine Anfrage — hier sehen Sie dann den Stand.',
     st: { new: '🆕 Eingegangen, Angebot in Arbeit', taken: '🛠 Beim Manager in Bearbeitung', kp: (d) => `📄 Angebot gesendet am ${d}`, won: '✅ Abgeschlossen', lost: '☑️ Geschlossen', closed: '☑️ Geschlossen' },
     from: 'vom', q: 'Fragen zur Anfrage? Schreiben Sie einfach hier — ein Manager antwortet.' },
+};
+const AI_TEXT = {
+  ru: { limit: 'На сегодня лимит вопросов помощнику исчерпан. Ваш вопрос передан менеджеру — он ответит здесь.', menu: '📋 Меню' },
+  kk: { limit: 'Бүгінге көмекшіге сұрақ лимиті таусылды. Сұрағыңыз менеджерге жіберілді — ол осында жауап береді.', menu: '📋 Мәзір' },
+  de: { limit: 'Das Tageslimit für Fragen an den Assistenten ist erreicht. Ihre Frage ist beim Manager — er antwortet hier.', menu: '📋 Menü' },
 };
 const MGR_PREFIX = { ru: '💬 Менеджер EFIM:', kk: '💬 EFIM менеджері:', de: '💬 EFIM-Manager:' };
 // Время Казахстана (UTC+5): «23.11.2026 17:05»
@@ -266,6 +272,7 @@ export class BotState {
   async start(m, arg) {
     const uid = m.from.id;
     await this.setState(uid, null);
+    await this.s.delete(`ai:${uid}`);
     if (arg.startsWith('staff_')) {
       const code = arg.slice(6);
       const ok = await this.update('invites', [], (inv) => { const i = inv.indexOf(code); if (i < 0) return false; inv.splice(i, 1); return true; });
@@ -563,7 +570,10 @@ export class BotState {
     const uid = m.from.id;
     const l = await this.getLang(uid);
     const open = Object.values(await this.leads()).filter((x) => x.uid === uid && !CLOSED.has(x.status)).sort((a, b) => b.id - a.id)[0];
-    if (!open) return this.send(uid, T[l].menu, await this.kbMenu(l, uid));
+    if (!open) {
+      if (this.env.ANTHROPIC_API_KEY && m.text) return this.aiAnswer(m, l);
+      return this.send(uid, T[l].menu, await this.kbMenu(l, uid));
+    }
     const to = open.by_id ? [open.by_id] : [...await this.allStaff()];
     for (const sid of to) {
       const h = await this.send(sid, `💬 <b>Клиент ${esc(open.name)}</b> по заявке #${open.id} (${STATUS[open.status]}):\n<i>Ответьте на сообщение (свайп → «Ответить») — бот передаст ответ клиенту.</i>`);
@@ -572,6 +582,46 @@ export class BotState {
       if (c.ok) await this.put(`fw:${sid}:${c.result.message_id}`, uid);
     }
     return this.send(uid, CLIENT_FWD[l] || CLIENT_FWD.ru);
+  }
+
+  // Умный помощник: отвечает клиенту по каталогу, сложное передаёт менеджерам
+  async aiAnswer(m, l) {
+    const uid = m.from.id;
+    const q = m.text.slice(0, 2000);
+    const day = kzTime(Date.now() / 1000).slice(0, 10);
+    const used = await this.update(`aiq:${uid}`, { day, n: 0 }, (c) => { if (c.day !== day) { c.day = day; c.n = 0; } c.n++; return c.n; });
+    const at = AI_TEXT[l] || AI_TEXT.ru;
+    if (used > AI_DAILY_LIMIT) {
+      await this.handoff(m, q, null, 'лимит вопросов на сегодня');
+      return this.send(uid, at.limit);
+    }
+    await this.tg('sendChatAction', { chat_id: uid, action: 'typing' });
+    const history = (await this.get(`ai:${uid}`, [])).concat([{ role: 'user', content: q }]);
+    const r = await askAssistant(this.env.ANTHROPIC_API_KEY, history);
+    if (r.error) {
+      console.log('assistant error:', r.error);
+      await this.handoff(m, q, null, `помощник недоступен (${r.error})`);
+      return this.send(uid, CLIENT_FWD[l] || CLIENT_FWD.ru);
+    }
+    await this.put(`ai:${uid}`, history.concat([{ role: 'assistant', content: r.reply }]).slice(-AI_HISTORY));
+    const kb = new KB();
+    if (r.suggest_quote) kb.button(T[l].b_quote, 'quote');
+    kb.button(at.menu, 'menu');
+    await this.send(uid, esc(r.reply), kb.adjust(1));
+    if (r.handoff) await this.handoff(m, q, r.reply, 'помощник передал менеджеру');
+  }
+
+  // Передать вопрос клиента всем сотрудникам (ответ свайпом уйдёт клиенту)
+  async handoff(m, question, aiReply, why) {
+    const f = m.from;
+    const who = `${esc([f.first_name, f.last_name].filter(Boolean).join(' '))}${f.username ? ' (@' + esc(f.username) + ')' : ''}`;
+    const text = `🤖 <b>Вопрос клиента</b> — ${why}\n<b>От:</b> ${who}, язык: ${LANG_NAMES[await this.getLang(f.id)] || '—'}\n\n` +
+      `❓ ${esc(question)}${aiReply ? `\n\n💡 Помощник ответил: ${esc(aiReply)}` : ''}\n\n` +
+      '<i>Ответьте на это сообщение (свайп → «Ответить») — бот передаст ответ клиенту.</i>';
+    for (const sid of await this.allStaff()) {
+      const h = await this.send(sid, text);
+      if (h.ok) await this.put(`fw:${sid}:${h.result.message_id}`, f.id);
+    }
   }
 
   // Ответ сотрудника клиенту

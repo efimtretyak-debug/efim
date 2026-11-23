@@ -5,6 +5,7 @@
 
 - `worker.js` — логика бота и приём заявок с сайта
 - `texts.js` — все тексты на трёх языках, каталог, подбор, ссылки, фото (бывший `texts.py`)
+- `ai.js` — умный помощник (Claude API): отвечает клиентам по каталогу, сложное передаёт менеджерам
 - `xlsx.js` — выгрузка заявок в Excel (кнопка «📥 Заявки в Excel» у админа, команда `/excel`)
 
 Воркер в Cloudflare называется **efim-leads**, адрес `https://efim-leads.efimfarm.workers.dev`.
@@ -23,8 +24,22 @@
 - выгрузка всех заявок в Excel (админы);
 - «📋 Мои заявки» для клиента (кнопка в меню и /myleads): статус каждой заявки на его языке.
 
+## Сборка и загрузка
+Cloudflare принимает один файл, поэтому код собирается вместе с библиотекой Anthropic:
+```
+cd telegram-bot && npm install && npm run build      # → dist/worker.js
+```
+Загрузить `dist/worker.js` в воркер efim-leads (Cloudflare → efim-leads → Edit code, или через API).
+
+## Умный помощник
+Включается секретом `ANTHROPIC_API_KEY` (ключ с console.anthropic.com). Без ключа бот работает как раньше.
+Клиент пишет вопрос своими словами (когда у него нет открытой заявки) — помощник отвечает по каталогу на языке клиента.
+Цены, сроки, наличие и всё, чего нет в справке, помощник не выдумывает: предлагает КП или передаёт вопрос менеджерам
+(«🤖 Вопрос клиента», ответ свайпом уходит клиенту). Лимит — 30 ответов в сутки на клиента (`AI_DAILY_LIMIT` в ai.js).
+Модель — `AI_MODEL` в ai.js. Справка для помощника собирается из texts.js.
+
 ## Настройки (Cloudflare → efim-leads → Settings → Variables and Secrets)
-Секреты: `TELEGRAM_BOT_TOKEN`, `TG_WEBHOOK_SECRET`, `SETUP_KEY`.
+Секреты: `TELEGRAM_BOT_TOKEN`, `TG_WEBHOOK_SECRET`, `SETUP_KEY`, `ANTHROPIC_API_KEY` (помощник, необязательно).
 Переменные: `ADMIN_IDS` (папа), `ADMIN_USERNAMES`, `STAFF_IDS`, `REMIND_MINUTES`.
 Сотрудников удобнее добавлять через бота: «Пригласить сотрудника» или `/invite`.
 
