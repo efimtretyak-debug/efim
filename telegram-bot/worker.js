@@ -26,6 +26,8 @@ const ALLOWED_ORIGINS = [
 const STATUS = { new: '🆕 Новая', taken: '🛠 В работе', kp: '📄 КП отправлено', won: '✅ Сделка', lost: '❌ Отказ', closed: '✅ Закрыта' };
 const PLAIN = { new: 'Новая', taken: 'В работе', kp: 'КП отправлено', won: 'Сделка', lost: 'Отказ', closed: 'Закрыта' };
 const CLOSED = new Set(['won', 'lost', 'closed']);
+// Шаг «Беру в работу». Пока выключен: из новой заявки сразу «Отправить КП» / «Отказ». Вернуть — true.
+const TAKE_STEP = false;
 // Сообщения клиенту (на его языке)
 const KP_HEAD = {
   ru: (id) => `📄 <b>Коммерческое предложение</b> по вашей заявке #${id} от EFIM FARM TECHNOLOGIES.\n\nЕсли есть вопросы — напишите их прямо здесь, менеджер ответит.`,
@@ -409,13 +411,14 @@ export class BotState {
     if (CLOSED.has(x.status)) return undefined;
     const b = new KB();
     const site = !x.uid;   // у заявки с сайта нет Telegram клиента
-    if (x.status === 'new') b.button('✅ Беру в работу', `lead:take:${x.id}`);
-    if (x.status === 'taken') b.button(site ? '📄 КП отправлено (вручную)' : '📄 Отправить КП', `lead:${site ? 'kpdone' : 'kp'}:${x.id}`);
+    if (x.status === 'new' && TAKE_STEP) b.button('✅ Беру в работу', `lead:take:${x.id}`);
+    const working = x.status === 'taken' || (x.status === 'new' && !TAKE_STEP);
+    if (working) b.button(site ? '📄 КП отправлено (вручную)' : '📄 Отправить КП', `lead:${site ? 'kpdone' : 'kp'}:${x.id}`);
     if (x.status === 'kp') {
       if (!site) b.button('📄 Отправить ещё КП', `lead:kp:${x.id}`);
       b.button('✅ Сделка', `lead:won:${x.id}`);
     }
-    if (x.status === 'taken' || x.status === 'kp') b.button('❌ Отказ', `lead:lost:${x.id}`);
+    if (working || x.status === 'kp') b.button('❌ Отказ', `lead:lost:${x.id}`);
     const wa = waLink(x.phone);
     if (wa) b.url('💬 WhatsApp клиенту', wa);
     return b.adjust(1);
@@ -473,7 +476,7 @@ export class BotState {
     if (!(await this.isStaff(cb.from.id))) return this.answer(cb, 'Нет доступа', true);
     const [, action, lid] = cb.data.split(':');
     const who = [cb.from.first_name, cb.from.last_name].filter(Boolean).join(' ');
-    const work = (st) => st === 'taken' || st === 'kp';
+    const work = (st) => st === 'taken' || st === 'kp' || (st === 'new' && !TAKE_STEP);
     if (action === 'kp') {    // дальше сотрудник присылает файл или текст КП
       const x = (await this.leads())[lid];
       if (!x) return this.answer(cb, 'Заявка не найдена', true);
@@ -487,9 +490,9 @@ export class BotState {
       const x = leads[lid];
       if (!x) return 'missing';
       if (action === 'take' && x.status === 'new') Object.assign(x, { status: 'taken', by: who, by_id: cb.from.id });
-      else if (action === 'kpdone' && work(x.status)) Object.assign(x, { status: 'kp', kp_at: now, kp_by: who, kp_count: (x.kp_count || 0) + 1 });
+      else if (action === 'kpdone' && work(x.status)) Object.assign(x, { status: 'kp', kp_at: now, kp_by: who, kp_count: (x.kp_count || 0) + 1 }, x.by_id ? {} : { by: who, by_id: cb.from.id });
       else if (action === 'won' && x.status === 'kp') Object.assign(x, { status: 'won', closed_at: now });
-      else if (action === 'lost' && work(x.status)) Object.assign(x, { status: 'lost', closed_at: now });
+      else if (action === 'lost' && work(x.status)) Object.assign(x, { status: 'lost', closed_at: now }, x.by_id ? {} : { by: who, by_id: cb.from.id });
       else if (action === 'close' && x.status === 'taken') x.status = 'closed';
       else return 'done';
       return { ...x };
