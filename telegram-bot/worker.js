@@ -39,6 +39,18 @@ const CLIENT_FWD = {
   kk: '✅ Хабарламаңызды менеджерге жібердік, жауап осында келеді.',
   de: '✅ Ihre Nachricht ist beim Manager, die Antwort kommt hier.',
 };
+// «Мои заявки» для клиента
+const MY = {
+  ru: { btn: '📋 Мои заявки', title: '📋 <b>Ваши заявки</b>', none: 'У вас пока нет заявок. Оставьте заявку — и здесь будет видно, как она движется.',
+    st: { new: '🆕 Принята, готовим КП', taken: '🛠 В работе у менеджера', kp: (d) => `📄 КП отправлено ${d}`, won: '✅ Завершена', lost: '☑️ Закрыта', closed: '☑️ Закрыта' },
+    from: 'от', q: 'Есть вопрос по заявке? Просто напишите сюда — менеджер ответит.' },
+  kk: { btn: '📋 Менің өтінімдерім', title: '📋 <b>Сіздің өтінімдеріңіз</b>', none: 'Әзірге өтінімдеріңіз жоқ. Өтінім қалдырыңыз — оның барысы осында көрінеді.',
+    st: { new: '🆕 Қабылданды, ұсыныс дайындалуда', taken: '🛠 Менеджерде', kp: (d) => `📄 Ұсыныс жіберілді ${d}`, won: '✅ Аяқталды', lost: '☑️ Жабылды', closed: '☑️ Жабылды' },
+    from: '', q: 'Өтінім бойынша сұрақ бар ма? Осында жазыңыз — менеджер жауап береді.' },
+  de: { btn: '📋 Meine Anfragen', title: '📋 <b>Ihre Anfragen</b>', none: 'Sie haben noch keine Anfragen. Senden Sie eine Anfrage — hier sehen Sie dann den Stand.',
+    st: { new: '🆕 Eingegangen, Angebot in Arbeit', taken: '🛠 Beim Manager in Bearbeitung', kp: (d) => `📄 Angebot gesendet am ${d}`, won: '✅ Abgeschlossen', lost: '☑️ Geschlossen', closed: '☑️ Geschlossen' },
+    from: 'vom', q: 'Fragen zur Anfrage? Schreiben Sie einfach hier — ein Manager antwortet.' },
+};
 const MGR_PREFIX = { ru: '💬 Менеджер EFIM:', kk: '💬 EFIM менеджері:', de: '💬 EFIM-Manager:' };
 // Время Казахстана (UTC+5): «23.11.2026 17:05»
 const kzTime = (sec) => {
@@ -210,6 +222,7 @@ export class BotState {
     if (cmd === 'leads') { if (await this.isStaff(uid)) return this.send(uid, await this.leadsText()); return; }
     if (cmd === 'stats') { if (await this.isStaff(uid)) return this.send(uid, await this.statsText()); return; }
     if (cmd === 'broadcast') return this.cmdBroadcast(m, args);
+    if (cmd === 'myleads') { const l = await this.getLang(uid); return this.send(uid, await this.myLeadsText(uid, l), new KB().button(T[l].b_quote, 'quote').button(T[l].b_back, 'menu').adjust(1)); }
     if (cmd === 'cancel') { await this.setState(uid, null); return this.send(uid, 'Отменено.'); }
     if (cmd === 'excel') { if (await this.isAdmin(uid)) return this.sendExcel(uid); return; }
     if (cmd === 'invite') { if (await this.isAdmin(uid)) return this.send(uid, `Перешли эту ссылку сотруднику. Она одноразовая: он нажимает, жмёт «Запустить», и он в команде.\n\n${await this.newInvite()}`); return; }
@@ -350,6 +363,7 @@ export class BotState {
       await this.send(cb.message.chat.id, t.q_name, new KB().button(t.q_cancel, 'menu').adjust(1));
       return this.answer(cb);
     }
+    if (d === 'myleads') return this.show(cb, await this.myLeadsText(uid, l), new KB().button(T[l].b_quote, 'quote').button(T[l].b_back, 'menu').adjust(1));
     if (d === 'quote') {
       await this.setState(uid, { step: 'name' });
       await this.send(cb.message.chat.id, t.q_name, new KB().button(t.q_cancel, 'menu').adjust(1));
@@ -375,9 +389,9 @@ export class BotState {
     const t = T[l];
     const b = new KB().button(t.b_catalog, 'catalog').button(t.b_about, 'about').button(t.b_prod, 'prod')
       .button(t.b_proj, 'proj').button(t.b_dept, 'dept').button(t.b_contacts, 'contacts')
-      .button(PICK[l].btn, 'pick').button(t.b_quote, 'quote').button(t.b_lang, 'setlang');
+      .button(PICK[l].btn, 'pick').button(t.b_quote, 'quote').button((MY[l] || MY.ru).btn, 'myleads').button(t.b_lang, 'setlang');
     if (uid !== undefined && await this.isStaff(uid)) b.button('👷 Меню сотрудника', 'staff:menu');
-    return b.adjust(2, 2, 2, 1, 1, 1, 1);
+    return b.adjust(2, 2, 2, 1, 2, 1, 1);
   }
   kbBack(l, { to = 'menu', site, quote = false, extra = [] } = {}) {
     const t = T[l];
@@ -527,6 +541,21 @@ export class BotState {
     });
     await this.refreshLead(res);
     return this.send(uid, `✅ КП отправлено клиенту ${esc(x.name)} (заявка #${x.id}). Если клиент ответит, его сообщение придёт сюда.`);
+  }
+
+  // Заявки клиента со статусом (на его языке)
+  async myLeadsText(uid, l) {
+    const my = MY[l] || MY.ru;
+    const list = Object.values(await this.leads()).filter((x) => x.uid === uid).sort((a, b) => b.id - a.id).slice(0, 10);
+    if (!list.length) return `${my.title}\n\n${my.none}`;
+    const date = (sec) => kzTime(sec).slice(0, 10);
+    const lines = list.map((x) => {
+      const st = x.status === 'kp' ? my.st.kp(date(x.kp_at)) : (my.st[x.status] || x.status);
+      const need = String(x.need || '').replace(/^\[Подбор оборудования\]\s*/, '');
+      return `<b>#${x.id}</b> ${my.from ? my.from + ' ' : ''}${date(x.created)}\n${esc(need.length > 80 ? need.slice(0, 80) + '…' : need)}\n${st}`;
+    });
+    const open = list.some((x) => !CLOSED.has(x.status));
+    return `${my.title}\n\n${lines.join('\n\n')}${open ? '\n\n' + my.q : ''}`;
   }
 
   // Клиент написал боту вне заявки — передаём менеджеру его последней открытой заявки
@@ -714,9 +743,9 @@ export class BotState {
 
   // ---------- меню команд (кнопка «Меню» слева от поля ввода) ----------
   static CLIENT_COMMANDS = {
-    ru: [['start', 'Начать / выбрать язык'], ['menu', 'Главное меню']],
-    kk: [['start', 'Бастау / тілді таңдау'], ['menu', 'Басты мәзір']],
-    de: [['start', 'Start / Sprache wählen'], ['menu', 'Hauptmenü']],
+    ru: [['start', 'Начать / выбрать язык'], ['menu', 'Главное меню'], ['myleads', 'Мои заявки']],
+    kk: [['start', 'Бастау / тілді таңдау'], ['menu', 'Басты мәзір'], ['myleads', 'Менің өтінімдерім']],
+    de: [['start', 'Start / Sprache wählen'], ['menu', 'Hauptmenü'], ['myleads', 'Meine Anfragen']],
   };
   static STAFF_COMMANDS = [['leads', 'Открытые заявки'], ['stats', 'Статистика'], ['id', 'Мой Telegram ID']];
   static ADMIN_COMMANDS = [['invite', 'Ссылка-приглашение для сотрудника'], ['staff', 'Список сотрудников'], ['broadcast', 'Рассылка: /broadcast текст'], ['excel', 'Все заявки в Excel']];
