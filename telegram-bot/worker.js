@@ -14,6 +14,7 @@
 //
 // Все данные (пользователи, сотрудники, заявки) хранятся в Durable Object «BotState».
 
+import { buildXlsx } from './xlsx.js';
 import { LANGS, MAP_QUERY, OWN, PAGES, PARTNERS, PHOTOS, PICK, PICK_LANG, REC, SOCIALS, T, WHATSAPP } from './texts.js';
 
 const BOT_VERSION = '5.0-cloudflare';
@@ -93,6 +94,19 @@ export class BotState {
       return { ok: false, description: String(e) };
     }
   }
+  // Отправка файла (multipart)
+  async tgFile(method, field, chat, bytes, filename, caption) {
+    const fd = new FormData();
+    fd.append('chat_id', String(chat));
+    if (caption) { fd.append('caption', caption); fd.append('parse_mode', 'HTML'); }
+    fd.append(field, new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename);
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${this.env.TELEGRAM_BOT_TOKEN}/${method}`, { method: 'POST', body: fd });
+      const j = await r.json();
+      if (!j.ok) console.log(`tg ${method} failed: ${j.description}`);
+      return j;
+    } catch (e) { return { ok: false, description: String(e) }; }
+  }
   send(chat, text, kb, extra = {}) {
     return this.tg('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: kb, ...extra });
   }
@@ -167,6 +181,7 @@ export class BotState {
     if (cmd === 'leads') { if (await this.isStaff(uid)) return this.send(uid, await this.leadsText()); return; }
     if (cmd === 'stats') { if (await this.isStaff(uid)) return this.send(uid, await this.statsText()); return; }
     if (cmd === 'broadcast') return this.cmdBroadcast(m, args);
+    if (cmd === 'excel') { if (await this.isAdmin(uid)) return this.sendExcel(uid); return; }
     if (cmd === 'invite') { if (await this.isAdmin(uid)) return this.send(uid, `Перешли эту ссылку сотруднику. Она одноразовая: он нажимает, жмёт «Запустить», и он в команде.\n\n${await this.newInvite()}`); return; }
     if (cmd === 'staff') { if (await this.isAdmin(uid)) return this.send(uid, await this.teamText()); return; }
     if (cmd === 'addstaff') return this.cmdAddStaff(m, args);
@@ -454,8 +469,9 @@ export class BotState {
       .button('📊 Статистика', 'staff:stats').button('📦 Каталог', 'catalog')
       .button('👤 Клиентское меню', 'menu').button('🆔 Мой ID', 'staff:id');
     const admin = await this.isAdmin(uid);
-    if (admin) b.button('➕ Пригласить сотрудника', 'staff:invite').button('👥 Команда', 'staff:team').button('📣 Рассылка', 'staff:bc');
-    return b.adjust(...[2, 2, 2].concat(admin ? [1, 2] : []));
+    if (admin) b.button('➕ Пригласить сотрудника', 'staff:invite').button('👥 Команда', 'staff:team').button('📣 Рассылка', 'staff:bc')
+      .button('📥 Заявки в Excel', 'staff:excel');
+    return b.adjust(...[2, 2, 2].concat(admin ? [1, 2, 1] : []));
   }
   kbStaffBack() { return new KB().button('⬅️ Меню сотрудника', 'staff:menu').adjust(1); }
 
@@ -470,7 +486,7 @@ export class BotState {
     const uid = cb.from.id;
     if (!(await this.isStaff(uid))) return this.answer(cb, 'Нет доступа', true);
     const action = cb.data.split(':')[1];
-    if (['invite', 'team', 'bc'].includes(action) && !(await this.isAdmin(uid))) return this.answer(cb, 'Только для админа', true);
+    if (['invite', 'team', 'bc', 'excel'].includes(action) && !(await this.isAdmin(uid))) return this.answer(cb, 'Только для админа', true);
     if (action === 'menu') return this.show(cb, await this.staffMenuText(), await this.kbStaffMenu(uid));
     if (action === 'leads') return this.show(cb, await this.leadsText(), this.kbStaffBack());
     if (action === 'mine') {
@@ -483,6 +499,7 @@ export class BotState {
     if (action === 'id') return this.show(cb, `Твой Telegram ID: <code>${uid}</code>`, this.kbStaffBack());
     if (action === 'team') return this.show(cb, await this.teamText(), this.kbStaffBack());
     if (action === 'invite') return this.show(cb, `Перешли эту ссылку сотруднику (одноразовая):\n\n${await this.newInvite()}`, this.kbStaffBack());
+    if (action === 'excel') { await this.answer(cb, 'Готовлю файл…'); return this.sendExcel(uid); }
     if (action === 'bc') return this.show(cb, '📣 Чтобы разослать сообщение всем пользователям бота, напиши:\n\n<code>/broadcast текст сообщения</code>', this.kbStaffBack());
     return this.answer(cb);
   }
@@ -502,6 +519,33 @@ export class BotState {
     if (!ok) return this.send(m.from.id, 'Такого сотрудника нет в списке. Смотри /staff');
     await this.tg('deleteMyCommands', { scope: { type: 'chat', chat_id: Number(sid) } });
     return this.send(m.from.id, `Сотрудник ${sid} удалён, заявки ему больше не приходят.`);
+  }
+
+  // ---------- выгрузка заявок в Excel ----------
+  async sendExcel(chat) {
+    const leads = Object.values(await this.leads()).sort((a, b) => a.id - b.id);
+    if (!leads.length) return this.send(chat, 'Заявок пока нет — выгружать нечего.');
+    const dt = (sec) => {   // время Казахстана, UTC+5
+      if (!sec) return '';
+      const d = new Date((sec + 5 * 3600) * 1000).toISOString();
+      return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)} ${d.slice(11, 16)}`;
+    };
+    const plain = { new: 'Новая', taken: 'В работе', closed: 'Закрыта' };
+    const columns = [
+      { title: '№', width: 6 }, { title: 'Дата (Алматы)', width: 17 }, { title: 'Статус', width: 11 },
+      { title: 'Взял в работу', width: 18 }, { title: 'Имя', width: 20 }, { title: 'Телефон', width: 18 },
+      { title: 'Запрос', width: 50 }, { title: 'Источник', width: 10 }, { title: 'Telegram', width: 16 },
+      { title: 'Язык', width: 9 }, { title: 'Вложение', width: 10 }, { title: 'Напоминаний', width: 12 },
+    ];
+    const rows = leads.map((x) => [x.id, dt(x.created), plain[x.status] || x.status, x.by || '', x.name, x.phone, x.need,
+      x.source === 'site' ? 'Сайт' : 'Бот', x.tg && x.tg !== '—' ? x.tg : '', LANG_NAMES[x.lang] || x.lang || '',
+      x.file ? (x.file.type === 'photo' ? 'фото' : 'файл') : '', x.reminds || 0]);
+    const bytes = buildXlsx({ sheet: 'Заявки', columns, rows });
+    const today = dt(Date.now() / 1000).slice(0, 10).split('.').reverse().join('-');
+    const c = (st) => leads.filter((x) => x.status === st).length;
+    const caption = `📥 <b>Заявки EFIM</b> на ${dt(Date.now() / 1000)}\nВсего: ${leads.length} (новых ${c('new')}, в работе ${c('taken')}, закрыто ${c('closed')})`;
+    const r = await this.tgFile('sendDocument', 'document', chat, bytes, `Заявки_EFIM_${today}.xlsx`, caption);
+    if (!r.ok) return this.send(chat, 'Не получилось отправить файл: ' + esc(r.description || ''));
   }
 
   // Рассылка идёт порциями по расписанию (лимит Cloudflare на число запросов за раз)
@@ -557,7 +601,7 @@ export class BotState {
     de: [['start', 'Start / Sprache wählen'], ['menu', 'Hauptmenü']],
   };
   static STAFF_COMMANDS = [['leads', 'Открытые заявки'], ['stats', 'Статистика'], ['id', 'Мой Telegram ID']];
-  static ADMIN_COMMANDS = [['invite', 'Ссылка-приглашение для сотрудника'], ['staff', 'Список сотрудников'], ['broadcast', 'Рассылка: /broadcast текст']];
+  static ADMIN_COMMANDS = [['invite', 'Ссылка-приглашение для сотрудника'], ['staff', 'Список сотрудников'], ['broadcast', 'Рассылка: /broadcast текст'], ['excel', 'Все заявки в Excel']];
 
   async setStaffCommands(chatId) {
     let pairs = BotState.CLIENT_COMMANDS.ru.concat(BotState.STAFF_COMMANDS);

@@ -5,6 +5,7 @@
 
 - `worker.js` — логика бота и приём заявок с сайта
 - `texts.js` — все тексты на трёх языках, каталог, подбор, ссылки, фото (бывший `texts.py`)
+- `xlsx.js` — выгрузка заявок в Excel (кнопка «📥 Заявки в Excel» у админа, команда `/excel`)
 
 Воркер в Cloudflare называется **efim-leads**, адрес `https://efim-leads.efimfarm.workers.dev`.
 
