@@ -349,11 +349,30 @@ async function setup(request, env) {
   return json(out);
 }
 
+// ---------- отключить меню бота (вернуть бота другой программе) ----------
+// Снимает вебхук (не удаляя накопившиеся сообщения) и убирает команды, описания и
+// языковые имена, которые ставил /setup. Заявки с сайта продолжают работать.
+async function teardown(request, env) {
+  const url = new URL(request.url);
+  if (!env.SETUP_KEY || url.searchParams.get('key') !== env.SETUP_KEY) return new Response('Forbidden', { status: 403 });
+  const out = { webhook: await tg(env, 'deleteWebhook', { drop_pending_updates: false }) };
+  for (const language_code of [undefined, 'ru', 'kk', 'de']) {
+    const k = language_code || 'default';
+    out[`cmd_${k}`] = await tg(env, 'deleteMyCommands', { language_code });
+    out[`desc_${k}`] = await tg(env, 'setMyDescription', { language_code, description: '' });
+    out[`short_${k}`] = await tg(env, 'setMyShortDescription', { language_code, short_description: '' });
+    if (language_code) out[`name_${k}`] = await tg(env, 'setMyName', { language_code, name: '' });
+  }
+  out.info = await tg(env, 'getWebhookInfo', {});
+  return json(out);
+}
+
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
     if (path === '/tg') return webhook(request, env);
     if (path === '/setup') return setup(request, env);
+    if (path === '/teardown') return teardown(request, env);
     return siteLead(request, env);
   },
 };
