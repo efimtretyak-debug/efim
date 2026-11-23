@@ -1,19 +1,18 @@
 # EFIM Farm Technologies — сайт
 
-Новый сайт ТОО «EFIM FARM TECHNOLOGIES». Обычный статический HTML, без WordPress и без сборки.
+Статический сайт на трёх языках: русский (корень), казахский (`/kk/`), немецкий (`/de/`).
+Публикуется через GitHub Pages из ветки `main`.
 
-## Страницы
-- `index.html` — главная: производство, бренды, отделы, контакты, заявка в WhatsApp
-- `about.html` — о компании
-- `faresin.html`, `eisele.html`, `urban.html` — страницы брендов
-- `privacy.html` — политика конфиденциальности приложения «EFIM · Команда»
-- `404.html` — страница «не найдено»
+## Как менять тексты
+1. Тексты всех языков — в `tools/content.py` (политика конфиденциальности — `tools/privacy_ru.html`).
+2. Пересобрать страницы: `python3 tools/build.py`
+3. Стили — `assets/style.css`, скрипт — `assets/main.js`, фото — `assets/img/`.
 
-Стили — `assets/style.css`, скрипт — `assets/main.js`, фото — `assets/img/`.
-Старые ссылки вида `?page_id=8570` автоматически перенаправляются на новые страницы.
+Старые ссылки вида `?page_id=8570` автоматически ведут на новые страницы.
 
-## Публикация (GitHub Pages)
-Settings → Pages → Source: «Deploy from a branch» → ветка `main`, папка `/ (root)`.
+## Заявки в Telegram
+См. `telegram-worker/README.md`. После настройки впишите адрес воркера в `LEAD_ENDPOINT` в `assets/main.js`.
+Пока адрес пустой, форма открывает WhatsApp.
 
-Чтобы сайт открывался по адресу efimfarmtechnologies.kz, в Settings → Pages укажите Custom domain
-и у регистратора домена поменяйте DNS-записи на GitHub Pages.
+## Свой домен
+Когда будете переводить efimfarmtechnologies.kz: замените `SITE` в `tools/build.py` и пересоберите.

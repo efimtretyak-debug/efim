@@ -218,3 +218,32 @@ a.ccard:hover{border-color:var(--leaf)}
   .gallery{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn,.prod{transition:none}}
+
+/* language switcher */
+.langs{display:flex;gap:2px;background:var(--sand);border-radius:999px;padding:3px}
+.langs a{text-decoration:none;font-size:.82rem;font-weight:600;padding:5px 10px;border-radius:999px;color:var(--ink-2)}
+.langs a:hover{color:var(--ink)}
+.langs a[aria-current]{background:var(--forest);color:#fff}
+/* form extras */
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.panel .wa-btn{margin-top:10px;color:var(--forest);border-color:var(--line)}
+.panel .wa-btn:hover{background:var(--sand);border-color:var(--leaf)}
+.panel .btn[disabled]{opacity:.6;cursor:wait;transform:none}
+.status{margin:12px 0 0;font-weight:600;font-size:.95rem}
+.status:empty{display:none}
+.status.ok{color:#2E6B1E}
+.status.err{color:#B3261E}
+@media (max-width:900px){
+  .langs{margin-left:auto}
+  .tog{margin-left:8px}
+}
+.logo small{white-space:nowrap}
+.badge-kz{width:120px}
+@media (max-width:560px){
+  .bar{gap:10px}
+  .logo img{width:40px;height:40px}
+  .logo small{display:none}
+  .langs a{padding:5px 8px}
+  .tog{padding:9px 13px}
+}
+@media (max-width:900px){.tog{order:3}}
