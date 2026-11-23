@@ -131,7 +131,7 @@ async function siteLead(request, env) {
   ].filter(Boolean).join('\n');
 
   const r = await tg(env, 'sendMessage', { chat_id: env.TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' });
-  if (!r.ok) return new Response('Telegram error', { status: 502, headers });
+  if (!r.ok) return new Response('Telegram error: ' + (r.description || ''), { status: 502, headers });
   return new Response('OK', { status: 200, headers });
 }
 
