@@ -1,7 +1,7 @@
 (function () {
   // Адрес Cloudflare Worker, который пересылает заявки в Telegram (см. telegram-worker/README.md).
   // Пока пусто — заявка открывается в WhatsApp.
-  var LEAD_ENDPOINT = '';
+  var LEAD_ENDPOINT = 'https://efim-leads.efimfarm.workers.dev';
   var WA = 'https://wa.me/77775440651';
 
   // Старые ссылки WordPress (?page_id=...) ведут на новые страницы

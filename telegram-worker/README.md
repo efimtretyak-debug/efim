@@ -21,6 +21,6 @@
 5. Скопируйте адрес воркера, вида `https://efim-leads.<ваше-имя>.workers.dev`.
 
 ## 3. Подключить к сайту
-Впишите адрес в `assets/main.js`: `var LEAD_ENDPOINT = 'https://efim-leads....workers.dev';`
+Уже подключено: воркер `efim-leads`, адрес `https://efim-leads.efimfarm.workers.dev` (в `assets/main.js`, `LEAD_ENDPOINT`).
 
 Воркер принимает заявки только с адресов из `ALLOWED_ORIGINS` в `worker.js`.
