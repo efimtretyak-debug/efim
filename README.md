@@ -10,9 +10,13 @@
 
 Старые ссылки вида `?page_id=8570` автоматически ведут на новые страницы.
 
-## Заявки в Telegram
-См. `telegram-worker/README.md`. После настройки впишите адрес воркера в `LEAD_ENDPOINT` в `assets/main.js`.
-Пока адрес пустой, форма открывает WhatsApp.
+## Новости
+Блок «Новости» на главной и страница `news.html` подгружают новости из бота (`API` в `tools/build.py`).
+Новости добавляются через Telegram-бота или постами в подключённом канале — см. `telegram-bot/README.md`.
+
+## Заявки и Telegram-бот
+Форма на сайте отправляет заявки в Cloudflare Worker `efim-leads` (адрес в `LEAD_ENDPOINT`, `assets/main.js`),
+он же работает как Telegram-бот. Подробности — `telegram-bot/README.md`.
 
 ## Свой домен
 Когда будете переводить efimfarmtechnologies.kz: замените `SITE` в `tools/build.py` и пересоберите.

@@ -34,6 +34,41 @@
   var y = document.getElementById('year');
   if (y) y.textContent = new Date().getFullYear();
 
+  // Новости: подгружаются из бота (Cloudflare Worker). Нет новостей / ошибка — блок остаётся скрытым.
+  document.querySelectorAll('[data-news]').forEach(function (box) {
+    var api = box.getAttribute('data-news'), limit = +box.getAttribute('data-limit') || 3;
+    var full = box.classList.contains('full'), lang = box.getAttribute('data-lang') || 'ru';
+    var locale = { ru: 'ru-RU', kk: 'kk-KZ', de: 'de-DE' }[lang] || 'ru-RU';
+    var escH = function (x) { return String(x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var linkify = function (x) { return x.replace(/https?:\/\/[^\s<]+/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; }); };
+    var fmt = function (sec) { try { return new Date(sec * 1000).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return new Date(sec * 1000).toLocaleDateString(); } };
+    var showEmpty = function () { if (full) box.innerHTML = '<p class="news-empty">' + escH(box.getAttribute('data-empty')) + '</p>'; };
+    fetch(api + '/news').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (list) {
+      list = (list || []).slice(0, limit);
+      if (!list.length) return showEmpty();
+      box.innerHTML = list.map(function (n) {
+        var lines = String(n.text || '').split('\n');
+        var title = lines.shift().trim(), body = lines.join('\n').trim();
+        var long = body.length > 220;
+        return '<article class="news-card">' +
+          (n.photo ? '<img src="' + api + '/news/photo/' + n.id + '" alt="" loading="lazy">' : '<div class="nph" aria-hidden="true"></div>') +
+          '<div class="nb"><time>' + fmt(n.date) + '</time>' +
+          (title ? '<h3>' + linkify(escH(title)) + '</h3>' : '') +
+          (body ? '<p class="nt' + (long ? ' clip' : '') + '">' + linkify(escH(body)).replace(/\n/g, '<br>') + '</p>' : '') +
+          (long ? '<button type="button" class="more">' + escH(box.getAttribute('data-more')) + '</button>' : '') +
+          '</div></article>';
+      }).join('');
+      box.querySelectorAll('.more').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var p = b.previousElementSibling, open = p.classList.toggle('clip');
+          b.textContent = box.getAttribute(open ? 'data-more' : 'data-less');
+        });
+      });
+      var sec = box.closest('section[hidden]');
+      if (sec) sec.hidden = false;
+    }).catch(showEmpty);
+  });
+
   var form = document.getElementById('lead');
   if (!form) return;
   var v = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };

@@ -1,0 +1,14 @@
+{
+  "name": "efim-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild worker.js --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=dist/worker.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

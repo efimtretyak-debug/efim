@@ -10,6 +10,7 @@ RU_ONLY = {"privacy.html", "404.html"}
 SITE = "https://efimtretyak-debug.github.io/efim/"   # поменяйте на https://efimfarmtechnologies.kz/ после переезда домена
 WA = "https://wa.me/77775440651"
 PHONE, PHONE_TXT, EMAIL = "+77775440651", "+7 777 544 06 51", "efim@efimfarmtechnologies.kz"
+API = "https://efim-leads.efimfarm.workers.dev"   # Cloudflare Worker: заявки, новости, бот
 MAP = "https://maps.google.com/maps?q=%D0%A2%D0%BE%D0%B1%D1%8B%D0%BB%2C%20%D0%A2%D3%99%D1%83%D0%B5%D0%BB%D1%81%D1%96%D0%B7%D0%B4%D1%96%D0%BA%2069%2F1"
 
 SOC = [
@@ -17,6 +18,7 @@ SOC = [
  ("YouTube", "https://youtube.com/@agralfarm4406", '<rect x="2" y="5" width="20" height="14" rx="4"/><path d="M10 9l5 3-5 3z" fill="currentColor"/>'),
  ("Instagram", "https://www.instagram.com/agral_farm", '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>'),
  ("TikTok", "https://www.tiktok.com/@timka2406", '<path d="M14 3v11a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.5 3 2.5 5 5.5 5"/>'),
+ ("Telegram", "https://t.me/EFIMFARMTECHNOLOGIES_bot", '<path d="M21 4L3 11l6 2 2 6 3-4 5 4z"/><path d="M9 13l8-6"/>'),
  ("WhatsApp", WA, '<path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8a4 4 0 0 1-2-2l.8-1-1-2z"/>'),
 ]
 WA_ICON = SOC[-1][2]
@@ -71,7 +73,7 @@ class Page:
 
     def head(self, title, desc, cur=""):
         t = self.t
-        links = ["index.html#production", "index.html#brands", "about.html", "index.html#contact"]
+        links = ["index.html#production", "index.html#brands", "news.html", "about.html", "index.html#contact"]
         nav = "".join(f'<li><a href="{h}"{" aria-current=page" if h == cur else ""}>{n}</a></li>' for h, n in zip(links, t["nav"]))
         sw = "".join(f'<a href="{self.lang_url(l)}" hreflang="{T[l]["html_lang"]}" lang="{T[l]["html_lang"]}"{" aria-current=true" if l == self.lang else ""}>{T[l]["lang_name"]}</a>' for l in LANGS)
         alt = "" if self.fname in RU_ONLY else "".join(f'<link rel="alternate" hreflang="{T[l]["html_lang"]}" href="{SITE}{"" if l == "ru" else l + "/"}{self.fname}">\n' for l in LANGS)
@@ -114,7 +116,7 @@ class Page:
     def foot(self):
         t = self.t
         soc = "".join(f'<a href="{u}" target="_blank" rel="noopener" aria-label="{n}">{svg(p)}</a>' for n, u, p in SOC)
-        nav_links = ["index.html", "about.html", "index.html#production", "index.html#brands", "index.html#contact"]
+        nav_links = ["index.html", "about.html", "index.html#production", "index.html#brands", "news.html", "index.html#contact"]
         eq_links = ["index.html#brands", "faresin.html", "eisele.html", "index.html#brands", "index.html#departments", "urban.html"]
         nav = "".join(f'<li><a href="{h}">{n}</a></li>' for h, n in zip(nav_links, t["f_nav_items"]))
         eq = "".join(f'<li><a href="{h}">{n}</a></li>' for h, n in zip(eq_links, t["f_eq_items"]))
@@ -148,6 +150,21 @@ class Page:
         t = self.t
         return f'''<section class="sec"><div class="wrap"><div class="cta"><div><h2>{h or t["cta_h"]}</h2><p>{p or t["cta_p"]}</p></div>
 <a class="btn" href="index.html#contact">{t["cta_btn"]}</a></div></div></section>
+'''
+
+    def news_block(self, limit, full=False):
+        t = self.t
+        return (f'<div class="news-grid{" full" if full else ""}" data-news="{API}" data-limit="{limit}" data-lang="{t["html_lang"]}"'
+                f' data-more="{t["news_more"]}" data-less="{t["news_less"]}" data-empty="{t["news_empty"]}"></div>')
+
+    def socials(self):
+        t = self.t
+        cards = "".join(f'<a class="soc" href="{u}" target="_blank" rel="noopener"><span class="ic">{svg(p)}</span>'
+                        f'<span><b>{n}</b><span>{t["soc_desc"][n]}</span></span></a>' for n, u, p in SOC)
+        return f'''<section class="sec alt" id="social"><div class="wrap">
+<div class="head"><div><span class="eyebrow">{t["soc_eyebrow"]}</span><h2>{t["soc_h2"]}</h2><p>{t["soc_p"]}</p></div></div>
+<div class="socs">{cards}</div>
+</div></section>
 '''
 
     def stats(self):
@@ -201,6 +218,12 @@ def home(P):
 <div class="depts">{depts}</div>
 </div></section>
 
+<section class="sec" id="news" hidden><div class="wrap">
+<div class="head"><div><span class="eyebrow">{t["news_eyebrow"]}</span><h2>{t["news_h2"]}</h2><p>{t["news_p"]}</p></div>
+<a class="btn ghost" href="news.html">{t["news_all"]}</a></div>
+{P.news_block(3)}
+</div></section>
+
 <section class="sec"><div class="wrap split">
 {P.img("work-office.jpg", t["ab_img_alt"])}
 <div><span class="eyebrow">{t["ab_eyebrow"]}</span><h2>{t["ab_h2"]}</h2>
@@ -229,7 +252,18 @@ def home(P):
 <p class="note">{t["f_note"].format(privacy=P.a("privacy.html"))}</p>
 </form></div>
 </div></section>
-''' + P.foot()
+''' + P.socials() + P.foot()
+
+
+def news(P):
+    t = P.t
+    return P.head(t["news_title"], t["news_desc"], "news.html") + f'''
+<section class="phero"><div class="wrap">
+<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][2]}</div>
+<h1>{t["news_h1"]}</h1><p>{t["news_lead"]}</p>
+</div></section>
+<section class="sec"><div class="wrap">{P.news_block(30, full=True)}</div></section>
+''' + P.socials() + P.cta() + P.foot()
 
 
 def about(P):
@@ -238,7 +272,7 @@ def about(P):
     gal = "".join(P.img(s, a) for s, a in zip(GALLERY, t["gal_alts"]))
     return P.head(t["about_title"], t["about_desc"], "about.html") + f'''
 <section class="phero"><div class="wrap">
-<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][2]}</div>
+<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][3]}</div>
 <h1>{t["about_h1"]}</h1>
 <p>{t["about_lead"]}</p>
 </div></section>
@@ -297,6 +331,7 @@ def write(lang, fname, html):
 for lang in LANGS:
     write(lang, "index.html", home(Page(lang, "index.html")))
     write(lang, "about.html", about(Page(lang, "about.html")))
+    write(lang, "news.html", news(Page(lang, "news.html")))
     for k in BRAND_PAGES:
         write(lang, k + ".html", brand(Page(lang, k + ".html"), k))
 # только по-русски
