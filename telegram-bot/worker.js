@@ -183,6 +183,8 @@ export class BotState {
       return new Response('OK');
     }
     if (url.pathname === '/site-lead') return this.siteLead(await request.json());
+    if (url.pathname === '/news-public') return Response.json(await this.publicNews());
+    if (url.pathname.startsWith('/news-photo/')) return this.newsPhoto(url.pathname.split('/').pop());
     if (url.pathname === '/cron') { await this.cron(); return new Response('OK'); }
     if (url.pathname === '/setup') return Response.json(await this.setup(request.headers.get('X-Origin') || url.origin));
     if (url.pathname === '/teardown') return Response.json(await this.teardown());
@@ -196,6 +198,9 @@ export class BotState {
     if (user) await this.registerAdmin(user);
     if (u.message) return this.onMessage(u.message);
     if (u.callback_query) return this.onCallback(u.callback_query);
+    if (u.my_chat_member) return this.onMemberUpdate(u.my_chat_member);
+    if (u.channel_post) return this.onChannelPost(u.channel_post, false);
+    if (u.edited_channel_post) return this.onChannelPost(u.edited_channel_post, true);
   }
 
   // Если пишет человек из ADMIN_USERNAMES — запоминаем его chat id
@@ -230,6 +235,7 @@ export class BotState {
     if (cmd === 'broadcast') return this.cmdBroadcast(m, args);
     if (cmd === 'myleads') { const l = await this.getLang(uid); return this.send(uid, await this.myLeadsText(uid, l), new KB().button(T[l].b_quote, 'quote').button(T[l].b_back, 'menu').adjust(1)); }
     if (cmd === 'cancel') { await this.setState(uid, null); return this.send(uid, 'Отменено.'); }
+    if (cmd === 'news') { if (await this.isAdmin(uid)) return this.send(uid, await this.newsMenuText(), await this.kbNewsMenu()); return; }
     if (cmd === 'excel') { if (await this.isAdmin(uid)) return this.sendExcel(uid); return; }
     if (cmd === 'invite') { if (await this.isAdmin(uid)) return this.send(uid, `Перешли эту ссылку сотруднику. Она одноразовая: он нажимает, жмёт «Запустить», и он в команде.\n\n${await this.newInvite()}`); return; }
     if (cmd === 'staff') { if (await this.isAdmin(uid)) return this.send(uid, await this.teamText()); return; }
@@ -239,6 +245,7 @@ export class BotState {
     const st = await this.getState(uid);
     // Сотрудник отправляет КП клиенту
     if (st && st.step === 'kp') return this.staffSendKp(m, st);
+    if (st && st.step === 'news') return this.staffAddNews(m);
     // Сотрудник ответил (reply) на сообщение клиента — пересылаем клиенту
     if (m.reply_to_message && await this.isStaff(uid)) {
       const client = await this.get(`fw:${uid}:${m.reply_to_message.message_id}`, null);
@@ -383,6 +390,7 @@ export class BotState {
       return;
     }
     if (d.startsWith('staff:')) return this.staffButtons(cb);
+    if (d.startsWith('news:')) return this.newsButtons(cb);
     if (d.startsWith('lead:')) return this.leadAction(cb);
     return this.answer(cb);
   }
@@ -671,8 +679,8 @@ export class BotState {
       .button('👤 Клиентское меню', 'menu').button('🆔 Мой ID', 'staff:id');
     const admin = await this.isAdmin(uid);
     if (admin) b.button('➕ Пригласить сотрудника', 'staff:invite').button('👥 Команда', 'staff:team').button('📣 Рассылка', 'staff:bc')
-      .button('📥 Заявки в Excel', 'staff:excel');
-    return b.adjust(...[2, 2, 2].concat(admin ? [1, 2, 1] : []));
+      .button('📥 Заявки в Excel', 'staff:excel').button('📰 Новости на сайте', 'staff:news');
+    return b.adjust(...[2, 2, 2].concat(admin ? [1, 2, 2] : []));
   }
   kbStaffBack() { return new KB().button('⬅️ Меню сотрудника', 'staff:menu').adjust(1); }
 
@@ -687,7 +695,7 @@ export class BotState {
     const uid = cb.from.id;
     if (!(await this.isStaff(uid))) return this.answer(cb, 'Нет доступа', true);
     const action = cb.data.split(':')[1];
-    if (['invite', 'team', 'bc', 'excel'].includes(action) && !(await this.isAdmin(uid))) return this.answer(cb, 'Только для админа', true);
+    if (['invite', 'team', 'bc', 'excel', 'news'].includes(action) && !(await this.isAdmin(uid))) return this.answer(cb, 'Только для админа', true);
     if (action === 'menu') return this.show(cb, await this.staffMenuText(), await this.kbStaffMenu(uid));
     if (action === 'leads') return this.show(cb, await this.leadsText(), this.kbStaffBack());
     if (action === 'mine') {
@@ -701,6 +709,7 @@ export class BotState {
     if (action === 'team') return this.show(cb, await this.teamText(), this.kbStaffBack());
     if (action === 'invite') return this.show(cb, `Перешли эту ссылку сотруднику (одноразовая):\n\n${await this.newInvite()}`, this.kbStaffBack());
     if (action === 'excel') { await this.answer(cb, 'Готовлю файл…'); return this.sendExcel(uid); }
+    if (action === 'news') return this.show(cb, await this.newsMenuText(), await this.kbNewsMenu());
     if (action === 'bc') return this.show(cb, '📣 Чтобы разослать сообщение всем пользователям бота, напиши:\n\n<code>/broadcast текст сообщения</code>', this.kbStaffBack());
     return this.answer(cb);
   }
@@ -767,9 +776,141 @@ export class BotState {
     await this.send(job.by, `Отправлено: ${job.ok} из ${job.total}`);
   }
 
+  // =====================================================================
+  // Новости для сайта: из бота (админы) и из подключённых Telegram-каналов
+  // =====================================================================
+  async newsList() { return (await this.get('news', [])).sort((a, b) => b.date - a.date); }
+
+  async publicNews() {
+    return (await this.newsList()).slice(0, 30).map((n) => ({ id: n.id, date: n.date, text: n.text || '', photo: !!n.photo }));
+  }
+
+  async newsPhoto(id) {
+    const n = (await this.get('news', [])).find((x) => x.id === id);
+    if (!n || !n.photo) return new Response('Not found', { status: 404 });
+    const f = await this.tg('getFile', { file_id: n.photo });
+    if (!f.ok) return new Response('Not found', { status: 404 });
+    const r = await fetch(`https://api.telegram.org/file/bot${this.env.TELEGRAM_BOT_TOKEN}/${f.result.file_path}`);
+    if (!r.ok) return new Response('Not found', { status: 404 });
+    const ext = (f.result.file_path.split('.').pop() || '').toLowerCase();
+    const type = { png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[ext] || 'image/jpeg';
+    return new Response(r.body, { headers: { 'Content-Type': type } });
+  }
+
+  async addNews(item) {
+    const id = (Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    const n = { id, date: Date.now() / 1000, text: '', photo: null, ...item };
+    await this.update('news', [], (list) => { list.push(n); if (list.length > 200) list.sort((a, b) => b.date - a.date).splice(200); });
+    return n;
+  }
+
+  async newsMenuText() {
+    const list = await this.newsList();
+    const ch = await this.get('news_channels', {});
+    const last = list[0];
+    const lines = list.slice(0, 5).map((n) => `• ${kzTime(n.date).slice(0, 10)} ${n.photo ? '🖼 ' : ''}${esc((n.text || '(без текста)').split('\n')[0].slice(0, 50))}`);
+    const chNames = Object.values(ch).map((c) => esc(c.title)).join(', ');
+    return '📰 <b>Новости на сайте</b>\n\n' +
+      `Всего: ${list.length}${last ? `, последняя ${kzTime(last.date).slice(0, 10)}` : ''}\n` +
+      `Каналы: ${chNames || 'не подключены'}\n\n` + (lines.length ? lines.join('\n') : 'Новостей пока нет.');
+  }
+  async kbNewsMenu() {
+    const b = new KB().button('➕ Добавить новость', 'news:add');
+    for (const n of (await this.newsList()).slice(0, 5)) b.button(`🗑 ${kzTime(n.date).slice(0, 5)} ${(n.text || 'фото').split('\n')[0].slice(0, 25)}`, `news:del:${n.id}`);
+    return b.button('📢 Подключить канал', 'news:channel').button('⬅️ Меню сотрудника', 'staff:menu').adjust(1);
+  }
+
+  async newsButtons(cb) {
+    const uid = cb.from.id;
+    if (!(await this.isAdmin(uid))) return this.answer(cb, 'Только для админа', true);
+    const [, action, id] = cb.data.split(':');
+    if (action === 'add') {
+      await this.setState(uid, { step: 'news' });
+      await this.send(uid, '📰 <b>Новая новость для сайта</b>\n\nПришлите фото с подписью или просто текст. Первая строка станет заголовком.\n\nОтмена: /cancel');
+      return this.answer(cb);
+    }
+    if (action === 'del') {
+      const ok = await this.update('news', [], (list) => { const i = list.findIndex((n) => n.id === id); if (i < 0) return false; list.splice(i, 1); return true; });
+      await this.answer(cb, ok ? 'Удалено с сайта' : 'Уже удалено');
+      return this.show(cb, await this.newsMenuText(), await this.kbNewsMenu());
+    }
+    if (action === 'channel') {
+      const me = await this.tg('getMe', {});
+      return this.show(cb, '📢 <b>Новости из Telegram-канала</b>\n\n' +
+        `1. Откройте свой канал → Управление каналом → Администраторы → Добавить администратора.\n` +
+        `2. Найдите @${me.ok ? me.result.username : 'EFIMFARMTECHNOLOGIES_bot'} и добавьте (достаточно права «Публикация сообщений»).\n` +
+        '3. Готово: каждый новый пост в канале сам появится на сайте. Изменили пост — изменится и на сайте.\n\n' +
+        'Подключать канал должен админ бота (вы), иначе бот его не примет.', new KB().button('⬅️ Новости', 'staff:news').adjust(1));
+    }
+    return this.answer(cb);
+  }
+
+  async staffAddNews(m) {
+    const uid = m.from.id;
+    const text = (m.text || m.caption || '').trim();
+    const photo = m.photo ? m.photo[m.photo.length - 1].file_id : null;
+    if (!text && !photo) return this.send(uid, 'Пришлите фото с подписью или текст. Отмена: /cancel');
+    await this.setState(uid, null);
+    const n = await this.addNews({ text: text.slice(0, 4000), photo, source: 'bot', by: uid });
+    return this.send(uid, '✅ Новость опубликована на сайте (появится в течение пары минут).',
+      new KB().button('🗑 Удалить эту новость', `news:del:${n.id}`).button('📰 Все новости', 'staff:news').adjust(1));
+  }
+
+  // Бота добавили в канал / убрали из канала
+  async onMemberUpdate(u) {
+    if (u.chat.type !== 'channel') return;
+    const st = u.new_chat_member && u.new_chat_member.status;
+    if (st === 'administrator') {
+      if (!(await this.isAdmin(u.from.id))) {
+        console.log(`channel ${u.chat.id} added by non-admin ${u.from.id}, leaving`);
+        return this.tg('leaveChat', { chat_id: u.chat.id });
+      }
+      await this.update('news_channels', {}, (c) => { c[String(u.chat.id)] = { title: u.chat.title || '', by: u.from.id }; });
+      for (const a of await this.allAdmins()) await this.send(a, `📢 Канал «${esc(u.chat.title)}» подключён. Новые посты будут появляться на сайте в разделе «Новости».`);
+    } else if (st === 'left' || st === 'kicked' || st === 'member') {
+      await this.update('news_channels', {}, (c) => { delete c[String(u.chat.id)]; });
+    }
+  }
+
+  // Пост в подключённом канале → новость на сайте
+  async onChannelPost(p, edited) {
+    const ch = await this.get('news_channels', {});
+    if (!ch[String(p.chat.id)]) return;
+    const text = (p.text || p.caption || '').trim().slice(0, 4000);
+    const photo = p.photo ? p.photo[p.photo.length - 1].file_id : null;
+    const same = (n) => n.chat === p.chat.id && (n.msg === p.message_id || (p.media_group_id && n.group === p.media_group_id));
+    const found = await this.update('news', [], (list) => {
+      const n = list.find(same);
+      if (!n) return false;
+      if (edited || (text && !n.text)) n.text = text || n.text;
+      if (photo && (!n.photo || (edited && n.msg === p.message_id))) n.photo = photo;
+      return true;
+    });
+    if (found || edited) return;
+    if (!text && !photo) return;     // видео/опросы без подписи пропускаем
+    await this.addNews({ text, photo, source: 'channel', chat: p.chat.id, msg: p.message_id, group: p.media_group_id || null });
+  }
+
+  // Раз в неделю (понедельник, 10:00 по Алматы) напомнить админам, если новостей не было 7 дней
+  async newsReminder() {
+    const now = Date.now() / 1000;
+    const kz = new Date((now + 5 * 3600) * 1000);
+    if (kz.getUTCDay() !== 1 || kz.getUTCHours() < 10) return;
+    const week = kzTime(now).slice(0, 10);
+    if ((await this.get('news_remind', '')) === week) return;
+    await this.put('news_remind', week);
+    const last = (await this.newsList())[0];
+    if (last && now - last.date < 7 * 86400) return;
+    for (const a of await this.allAdmins()) {
+      await this.send(a, '📰 Напоминание: на сайте давно не было новостей. Добавьте свежую — фото с объекта, отгрузка, монтаж, новинка.',
+        new KB().button('➕ Добавить новость', 'news:add').adjust(1));
+    }
+  }
+
   // ---------- напоминания и рассылка (каждую минуту) ----------
   async cron() {
     await this.broadcastStep();
+    await this.newsReminder();
     const remind = Number(this.env.REMIND_MINUTES || 60);
     const now = Date.now() / 1000;
     const due = await this.update('leads', {}, (leads) => {
@@ -798,7 +939,7 @@ export class BotState {
     de: [['start', 'Start / Sprache wählen'], ['menu', 'Hauptmenü'], ['myleads', 'Meine Anfragen']],
   };
   static STAFF_COMMANDS = [['leads', 'Открытые заявки'], ['stats', 'Статистика'], ['id', 'Мой Telegram ID']];
-  static ADMIN_COMMANDS = [['invite', 'Ссылка-приглашение для сотрудника'], ['staff', 'Список сотрудников'], ['broadcast', 'Рассылка: /broadcast текст'], ['excel', 'Все заявки в Excel']];
+  static ADMIN_COMMANDS = [['invite', 'Ссылка-приглашение для сотрудника'], ['staff', 'Список сотрудников'], ['broadcast', 'Рассылка: /broadcast текст'], ['excel', 'Все заявки в Excel'], ['news', 'Новости на сайте']];
 
   async setStaffCommands(chatId) {
     let pairs = BotState.CLIENT_COMMANDS.ru.concat(BotState.STAFF_COMMANDS);
@@ -809,7 +950,7 @@ export class BotState {
   async setup(origin) {
     const out = {};
     out.webhook = await this.tg('setWebhook', { url: `${origin}/tg`, secret_token: this.env.TG_WEBHOOK_SECRET,
-      allowed_updates: ['message', 'callback_query'], drop_pending_updates: false });
+      allowed_updates: ['message', 'callback_query', 'my_chat_member', 'channel_post', 'edited_channel_post'], drop_pending_updates: false });
     const cmds = (pairs) => pairs.map(([command, description]) => ({ command, description }));
     out.cmd_default = await this.tg('setMyCommands', { commands: cmds(BotState.CLIENT_COMMANDS.ru) });
     for (const [lang, pairs] of Object.entries(BotState.CLIENT_COMMANDS)) out[`cmd_${lang}`] = await this.tg('setMyCommands', { commands: cmds(pairs), language_code: lang });
@@ -824,12 +965,12 @@ export class BotState {
   // ---------- выгрузка / загрузка данных (перенос с компьютера и резервная копия) ----------
   async exportData() {
     const o = {};
-    for (const k of ['users', 'admins', 'staff', 'invites', 'leads']) o[k] = await this.get(k, null);
+    for (const k of ['users', 'admins', 'staff', 'invites', 'leads', 'news', 'news_channels']) o[k] = await this.get(k, null);
     return o;
   }
   async importData(d) {
     const done = [];
-    for (const k of ['users', 'admins', 'staff', 'invites', 'leads']) if (d[k] !== undefined && d[k] !== null) { await this.put(k, d[k]); done.push(k); }
+    for (const k of ['users', 'admins', 'staff', 'invites', 'leads', 'news', 'news_channels']) if (d[k] !== undefined && d[k] !== null) { await this.put(k, d[k]); done.push(k); }
     return { imported: done };
   }
 }
@@ -856,6 +997,20 @@ export default {
       if (!env.SETUP_KEY || url.searchParams.get('key') !== env.SETUP_KEY) return new Response('Forbidden', { status: 403 });
       return stub(env).fetch(`https://bot${path}`, { method: request.method === 'POST' ? 'POST' : 'GET',
         body: request.method === 'POST' ? await request.text() : undefined, headers: { 'X-Origin': url.origin } });
+    }
+
+    // Новости для сайта (публично)
+    if (request.method === 'GET' && (path === '/news' || path.startsWith('/news/photo/'))) {
+      const cache = caches.default;
+      const hit = await cache.match(request);
+      if (hit) return hit;
+      const inner = path === '/news' ? 'https://bot/news-public' : `https://bot/news-photo/${path.split('/').pop().replace(/[^a-z0-9]/gi, '')}`;
+      const r = await stub(env).fetch(inner);
+      const res = new Response(r.body, r);
+      res.headers.set('Access-Control-Allow-Origin', '*');
+      res.headers.set('Cache-Control', path === '/news' ? 'public, max-age=60' : 'public, max-age=86400');
+      if (r.ok) await cache.put(request, res.clone());
+      return res;
     }
 
     // Заявка с сайта

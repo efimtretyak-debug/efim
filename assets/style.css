@@ -247,3 +247,29 @@ a.ccard:hover{border-color:var(--leaf)}
   .tog{padding:9px 13px}
 }
 @media (max-width:900px){.tog{order:3}}
+
+/* news */
+.news-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.news-grid.full{grid-template-columns:repeat(2,1fr)}
+.news-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.news-card img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--sand)}
+.news-card .nb{padding:18px 20px 22px;display:flex;flex-direction:column;gap:8px}
+.news-card time{font-size:.85rem;color:var(--orange-d);font-weight:600}
+.news-card h3{font-size:1.05rem;margin:0;line-height:1.3}
+.news-card .nt{margin:0;color:var(--muted);font-size:.96rem;word-break:break-word}
+.news-card .nt.clip{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.news-card .more{align-self:flex-start;background:none;border:0;padding:0;font:600 .93rem "Golos Text",sans-serif;color:var(--forest-2);cursor:pointer}
+.news-card .more:hover{text-decoration:underline}
+.news-card a{color:var(--forest-2)}
+.news-empty{color:var(--muted);font-size:1.05rem}
+/* socials */
+.socs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.soc{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;text-decoration:none;transition:border-color .15s,transform .15s}
+.soc:hover{border-color:var(--leaf);transform:translateY(-2px)}
+.soc .ic{flex:none;width:46px;height:46px;border-radius:12px;background:var(--forest);color:#fff;display:grid;place-items:center}
+.soc .ic svg{width:22px;height:22px}
+.soc b{display:block}
+.soc span span{display:block;font-size:.88rem;color:var(--muted)}
+@media (max-width:1080px){.news-grid{grid-template-columns:repeat(2,1fr)}.socs{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.news-grid,.news-grid.full,.socs{grid-template-columns:1fr}}
+.news-card .nph{aspect-ratio:16/10;background:var(--forest) url("img/logo.png") center/34% no-repeat}

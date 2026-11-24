@@ -10,6 +10,10 @@
 
 Старые ссылки вида `?page_id=8570` автоматически ведут на новые страницы.
 
+## Новости
+Блок «Новости» на главной и страница `news.html` подгружают новости из бота (`API` в `tools/build.py`).
+Новости добавляются через Telegram-бота или постами в подключённом канале — см. `telegram-bot/README.md`.
+
 ## Заявки и Telegram-бот
 Форма на сайте отправляет заявки в Cloudflare Worker `efim-leads` (адрес в `LEAD_ENDPOINT`, `assets/main.js`),
 он же работает как Telegram-бот. Подробности — `telegram-bot/README.md`.
