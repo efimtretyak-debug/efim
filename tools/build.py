@@ -37,6 +37,13 @@ ICONS = [
 BRANDS = [("Faresin", None, "faresin.html"), ("Dairymaster", None, None), ("Kraiburg", "brand-kraiburg.jpg", None),
           ("Eisele", "brand-eisele.png", "eisele.html"), ("Dinamica Generale", "brand-dinamica.png", None),
           ("Urban", "brand-urban.jpg", "urban.html"), ("MWS", "brand-mws.png", None)]
+# Видео с YouTube (со старого сайта)
+YT_CHANNEL = "https://youtube.com/@agralfarm4406"
+PROJECT_VIDEOS = ["i79q62MEWgc", "SZABRWN5YPI", "H4orTjo5lXY", "0wGB4M7lJsw", "OwP5_D5vabU"]
+SHORTS = ["J9zpDn3m9gg", "Hq9rXFexuV8", "SDowo7d37JY", "o8P2W_K5lDQ", "gpwle5bTiz0", "m2GmEgvU3aU"]
+URBAN_VIDEOS = [("9fBpMdnYXO0", False), ("XAvdwMXCzD4", True)]
+PROD_KEYS = ["stall", "calf", "scraper", "boxes", "vet", "ridge", "headlock", "drinkers"]   # фото assets/img/prod-<key>.jpg
+PROJECT_PHOTOS = [f"proj-{i:02d}.jpg" for i in range(1, 19)]
 STRIP = ["work-welding.jpg", "work-grinding.jpg", "work-press.jpg", "work-laser.jpg", "work-warehouse.jpg", "work-assembly.jpg"]
 GALLERY = ["work-cnc.jpg", "work-welding.jpg", "work-grinding.jpg", "work-press.jpg", "work-laser.jpg", "work-warehouse.jpg", "work-assembly.jpg", "logistics-forklift.jpg", "work-office.jpg"]
 BRAND_PAGES = {
@@ -44,7 +51,7 @@ BRAND_PAGES = {
     imgs=["faresin-leader.jpg", "faresin-trailed.jpg", "faresin-sheep.jpg", "faresin-stationary-1.jpg", "faresin-stationary-2.jpg", "faresin-stationary-3.jpg"]),
  "eisele": dict(name="Eisele", official=None, contain=False,
     imgs=["eisele-submersible.jpg", "eisele-vertical.jpg", "eisele-cutaway.jpg", "eisele-mixer.jpg", "eisele-lagoon.jpg", "eisele-pump-1.jpg"]),
- "urban": dict(name="Urban", official=None, contain=True, imgs=["urban-alma-pro.jpg", "urban-mobile.jpg", "brand-urban.jpg"]),
+ "urban": dict(name="Urban", official=None, contain=True, videos=URBAN_VIDEOS, imgs=["urban-alma-pro.jpg", "urban-mobile.jpg", "brand-urban.jpg"]),
 }
 
 
@@ -73,7 +80,7 @@ class Page:
 
     def head(self, title, desc, cur=""):
         t = self.t
-        links = ["index.html#production", "index.html#brands", "news.html", "about.html", "index.html#contact"]
+        links = ["index.html#production", "index.html#brands", "projects.html", "news.html", "about.html", "index.html#contact"]
         nav = "".join(f'<li><a href="{h}"{" aria-current=page" if h == cur else ""}>{n}</a></li>' for h, n in zip(links, t["nav"]))
         sw = "".join(f'<a href="{self.lang_url(l)}" hreflang="{T[l]["html_lang"]}" lang="{T[l]["html_lang"]}"{" aria-current=true" if l == self.lang else ""}>{T[l]["lang_name"]}</a>' for l in LANGS)
         alt = "" if self.fname in RU_ONLY else "".join(f'<link rel="alternate" hreflang="{T[l]["html_lang"]}" href="{SITE}{"" if l == "ru" else l + "/"}{self.fname}">\n' for l in LANGS)
@@ -116,7 +123,7 @@ class Page:
     def foot(self):
         t = self.t
         soc = "".join(f'<a href="{u}" target="_blank" rel="noopener" aria-label="{n}">{svg(p)}</a>' for n, u, p in SOC)
-        nav_links = ["index.html", "about.html", "index.html#production", "index.html#brands", "news.html", "index.html#contact"]
+        nav_links = ["index.html", "about.html", "index.html#production", "index.html#brands", "projects.html", "news.html", "index.html#contact"]
         eq_links = ["index.html#brands", "faresin.html", "eisele.html", "index.html#brands", "index.html#departments", "urban.html"]
         nav = "".join(f'<li><a href="{h}">{n}</a></li>' for h, n in zip(nav_links, t["f_nav_items"]))
         eq = "".join(f'<li><a href="{h}">{n}</a></li>' for h, n in zip(eq_links, t["f_eq_items"]))
@@ -152,6 +159,11 @@ class Page:
 <a class="btn" href="index.html#contact">{t["cta_btn"]}</a></div></div></section>
 '''
 
+    def video(self, vid, short=False):
+        t = self.t
+        return (f'<button type="button" class="yt{" short" if short else ""}" data-yt="{vid}" aria-label="{t["play"]}">'
+                f'<img src="https://i.ytimg.com/vi/{vid}/hqdefault.jpg" alt="" loading="lazy"><span class="play" aria-hidden="true"></span></button>')
+
     def news_block(self, limit, full=False):
         t = self.t
         return (f'<div class="news-grid{" full" if full else ""}" data-news="{API}" data-limit="{limit}" data-lang="{t["html_lang"]}"'
@@ -173,7 +185,7 @@ class Page:
 
 def home(P):
     t = P.t
-    prods = "".join(f'<article class="prod"><div class="ic">{svg(ICONS[i], 1.8)}</div><h3>{n}</h3><p>{d}</p><a href="#contact">{t["price_link"]}</a></article>'
+    prods = "".join(f'<article class="prod">{P.img("prod-" + PROD_KEYS[i] + ".jpg", n, cls="pimg")}<h3>{n}</h3><p>{d}</p><a href="#contact">{t["price_link"]}</a></article>'
                     for i, (n, d) in enumerate(t["products"]))
     brands = ""
     for (name, logo, link), (kind, text) in zip(BRANDS, t["brands"]):
@@ -218,6 +230,12 @@ def home(P):
 <div class="depts">{depts}</div>
 </div></section>
 
+<section class="sec alt" id="projects"><div class="wrap">
+<div class="head"><div><span class="eyebrow">{t["proj_eyebrow"]}</span><h2>{t["proj_h2"]}</h2><p>{t["proj_p"]}</p></div>
+<a class="btn ghost" href="projects.html">{t["proj_all"]}</a></div>
+<div class="vids">{"".join(P.video(v) for v in PROJECT_VIDEOS[:3])}</div>
+</div></section>
+
 <section class="sec" id="news" hidden><div class="wrap">
 <div class="head"><div><span class="eyebrow">{t["news_eyebrow"]}</span><h2>{t["news_h2"]}</h2><p>{t["news_p"]}</p></div>
 <a class="btn ghost" href="news.html">{t["news_all"]}</a></div>
@@ -255,11 +273,32 @@ def home(P):
 ''' + P.socials() + P.foot()
 
 
+def projects(P):
+    t = P.t
+    return P.head(t["proj_title"], t["proj_desc"], "projects.html") + f'''
+<section class="phero"><div class="wrap">
+<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][2]}</div>
+<h1>{t["proj_h1"]}</h1><p>{t["proj_lead"]}</p>
+</div></section>
+<div class="wrap"><div class="stats">{P.stats()}</div></div>
+<section class="sec"><div class="wrap"><div class="vids two">{"".join(P.video(v) for v in PROJECT_VIDEOS)}</div></div></section>
+<section class="sec"><div class="wrap">
+<div class="head"><div><span class="eyebrow">{t["proj_eyebrow"]}</span><h2>{t["ph_h2"]}</h2><p>{t["ph_p"]}</p></div></div>
+<div class="gallery">{"".join(P.img(x, t["ph_alt"]) for x in PROJECT_PHOTOS)}</div>
+</div></section>
+<section class="sec alt"><div class="wrap">
+<div class="head"><div><span class="eyebrow">{t["vid_eyebrow"]}</span><h2>{t["vid_h2"]}</h2><p>{t["vid_p"]}</p></div>
+<a class="btn ghost" href="{YT_CHANNEL}" target="_blank" rel="noopener">{t["vid_channel"]}</a></div>
+<div class="vids shorts">{"".join(P.video(v, True) for v in SHORTS)}</div>
+</div></section>
+''' + P.cta() + P.foot()
+
+
 def news(P):
     t = P.t
     return P.head(t["news_title"], t["news_desc"], "news.html") + f'''
 <section class="phero"><div class="wrap">
-<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][2]}</div>
+<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][3]}</div>
 <h1>{t["news_h1"]}</h1><p>{t["news_lead"]}</p>
 </div></section>
 <section class="sec"><div class="wrap">{P.news_block(30, full=True)}</div></section>
@@ -272,12 +311,13 @@ def about(P):
     gal = "".join(P.img(s, a) for s, a in zip(GALLERY, t["gal_alts"]))
     return P.head(t["about_title"], t["about_desc"], "about.html") + f'''
 <section class="phero"><div class="wrap">
-<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][3]}</div>
+<div class="crumbs"><a href="index.html">{t["home"]}</a> / {t["nav"][4]}</div>
 <h1>{t["about_h1"]}</h1>
 <p>{t["about_lead"]}</p>
 </div></section>
 <div class="wrap"><div class="stats">{P.stats()}</div></div>
 <section class="sec"><div class="wrap prose">{body}</div></section>
+<section class="sec" style="padding-top:0"><div class="wrap"><figure class="team">{P.img("team.jpg", t["team_cap"])}<figcaption>{t["team_cap"]}</figcaption></figure></div></section>
 <section class="sec alt"><div class="wrap">
 <div class="head"><div><span class="eyebrow">{t["about_gal_eyebrow"]}</span><h2>{t["about_gal_h2"]}</h2></div></div>
 <div class="gallery">{gal}</div>
@@ -291,6 +331,10 @@ def brand(P, key):
     body = "".join(f"<p>{x}</p>" for x in c["body"])
     off = f'<p style="margin-top:20px"><a class="btn ghost" href="{b["official"]}" target="_blank" rel="noopener">{t["official"]}</a></p>' if b["official"] else ""
     gal = "".join(P.img(s, a) for s, a in zip(b["imgs"], c["alts"]))
+    vids = ""
+    if b.get("videos"):
+        vids = (f'<section class="sec"><div class="wrap"><div class="head"><div><h2>{t["urban_vid"]}</h2></div></div>'
+                f'<div class="vids mixed">{"".join(P.video(v, sh) for v, sh in b["videos"])}</div></div></section>')
     return P.head(c["title"], c["desc"]) + f'''
 <section class="phero"><div class="wrap">
 <div class="crumbs"><a href="index.html">{t["home"]}</a> / <a href="index.html#brands">{t["brands_crumb"]}</a> / {b["name"]}</div>
@@ -299,6 +343,7 @@ def brand(P, key):
 </div></section>
 <section class="sec"><div class="wrap prose">{body}{off}</div></section>
 <section class="sec alt"><div class="wrap"><div class="gallery{" contain" if b["contain"] else ""}">{gal}</div></div></section>
+{vids}
 ''' + P.cta(t["brand_cta_h"].format(b=b["name"]), t["brand_cta_p"]) + P.foot()
 
 
@@ -332,6 +377,7 @@ for lang in LANGS:
     write(lang, "index.html", home(Page(lang, "index.html")))
     write(lang, "about.html", about(Page(lang, "about.html")))
     write(lang, "news.html", news(Page(lang, "news.html")))
+    write(lang, "projects.html", projects(Page(lang, "projects.html")))
     for k in BRAND_PAGES:
         write(lang, k + ".html", brand(Page(lang, k + ".html"), k))
 # только по-русски

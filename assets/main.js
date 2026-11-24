@@ -34,6 +34,19 @@
   var y = document.getElementById('year');
   if (y) y.textContent = new Date().getFullYear();
 
+  // Видео YouTube: сначала только картинка, плеер загружается по нажатию (сайт открывается быстрее)
+  document.querySelectorAll('.yt[data-yt]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = document.createElement('iframe');
+      f.src = 'https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-yt') + '?autoplay=1&rel=0';
+      f.title = 'YouTube';
+      f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      f.allowFullscreen = true;
+      b.replaceWith(f);
+      f.className = 'yt-frame' + (b.classList.contains('short') ? ' short' : '');
+    });
+  });
+
   // Новости: подгружаются из бота (Cloudflare Worker). Нет новостей / ошибка — блок остаётся скрытым.
   document.querySelectorAll('[data-news]').forEach(function (box) {
     var api = box.getAttribute('data-news'), limit = +box.getAttribute('data-limit') || 3;

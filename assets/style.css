@@ -273,3 +273,43 @@ a.ccard:hover{border-color:var(--leaf)}
 @media (max-width:1080px){.news-grid{grid-template-columns:repeat(2,1fr)}.socs{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:640px){.news-grid,.news-grid.full,.socs{grid-template-columns:1fr}}
 .news-card .nph{aspect-ratio:16/10;background:var(--forest) url("img/logo.png") center/34% no-repeat}
+
+/* video */
+.vids{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.vids.two{grid-template-columns:repeat(2,1fr)}
+.vids.shorts{grid-template-columns:repeat(6,1fr)}
+.vids.mixed{grid-template-columns:2fr 1fr;align-items:start}
+.yt,.yt-frame{position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;padding:0;border-radius:var(--r);overflow:hidden;background:#000;cursor:pointer}
+.yt.short,.yt-frame.short{aspect-ratio:9/16}
+.yt img{width:100%;height:100%;object-fit:cover;transition:transform .3s,opacity .2s;opacity:.92}
+.yt:hover img{transform:scale(1.03);opacity:1}
+.yt .play{position:absolute;left:50%;top:50%;width:68px;height:48px;margin:-24px 0 0 -34px;border-radius:14px;background:rgba(240,122,18,.95);box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.yt .play::after{content:"";position:absolute;left:28px;top:14px;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent #fff}
+.yt:hover .play{background:#FF8D2B}
+@media (max-width:1080px){.vids.shorts{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:900px){.vids,.vids.two{grid-template-columns:1fr}.vids.mixed{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.vids.shorts{grid-template-columns:repeat(2,1fr)}.vids.mixed{grid-template-columns:1fr}}
+/* шапка: 6 пунктов меню — «Меню»-кнопка уже до 1320px */
+@media (max-width:1320px){
+  .tog{display:block;order:3}
+  .hdr-cta{display:none}
+  .langs{margin-left:auto}
+  .tog{margin-left:8px}
+  .nav{display:none;position:absolute;left:0;right:0;top:72px;background:var(--paper);border-bottom:1px solid var(--line);padding:8px 16px 18px;margin:0}
+  .nav.open{display:block}
+  .nav ul{flex-direction:column}
+  .nav a{padding:12px 14px;border-radius:10px}
+}
+.nav a,.hdr-cta{white-space:nowrap}
+.nav a{padding:8px 10px}
+.vids.two>:first-child{grid-column:span 2}
+@media (max-width:900px){.vids.two>:first-child{grid-column:auto}}
+/* фото в карточках продукции */
+.prod{padding:0;overflow:hidden}
+.prod .pimg{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--sand)}
+.prod h3,.prod p,.prod a{padding-left:20px;padding-right:20px}
+.prod h3{margin-top:14px}
+.prod a{padding-bottom:20px}
+.team{margin:0}
+.team img{width:100%;border-radius:var(--r);aspect-ratio:16/9;object-fit:cover}
+.team figcaption{margin-top:10px;color:var(--muted);font-size:.95rem;text-align:center}

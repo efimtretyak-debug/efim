@@ -12,7 +12,16 @@ export const PHOTOS = {
   faresin: "https://efimtretyak-debug.github.io/efim/assets/img/faresin-leader.jpg",
   eisele: "https://efimtretyak-debug.github.io/efim/assets/img/eisele-submersible.jpg",
   urban: "https://efimtretyak-debug.github.io/efim/assets/img/urban-alma-pro.jpg",
-  kraiburg: "https://efimtretyak-debug.github.io/efim/assets/img/brand-kraiburg.jpg",
+  kraiburg: "https://efimtretyak-debug.github.io/efim/assets/img/prod-kraiburg-mats.jpg",
+  dairymaster: "https://efimtretyak-debug.github.io/efim/assets/img/prod-dairymaster.jpg",
+  stall: "https://efimtretyak-debug.github.io/efim/assets/img/prod-stall.jpg",
+  calf: "https://efimtretyak-debug.github.io/efim/assets/img/prod-calf.jpg",
+  scraper: "https://efimtretyak-debug.github.io/efim/assets/img/prod-scraper.jpg",
+  boxes: "https://efimtretyak-debug.github.io/efim/assets/img/prod-boxes.jpg",
+  vet: "https://efimtretyak-debug.github.io/efim/assets/img/prod-vet.jpg",
+  ridge: "https://efimtretyak-debug.github.io/efim/assets/img/prod-ridge.jpg",
+  headlock: "https://efimtretyak-debug.github.io/efim/assets/img/prod-headlock.jpg",
+  drinkers: "https://efimtretyak-debug.github.io/efim/assets/img/prod-drinkers.jpg",
 };
 
 export const LANGS = {
